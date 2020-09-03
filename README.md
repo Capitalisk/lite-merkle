@@ -17,8 +17,10 @@ let lamport = new SimpleLamport();
 // Generate private key and public key
 let { privateKey, publicKey } = lamport.generateKeys();
 
+let message = 'hello world';
+
 // Sign message
-let signature = lamport.sign('hello world', privateKey);
+let signature = lamport.sign(message, privateKey);
 
 // Verify message; returns true or false
 lamport.verify(message, signature, publicKey);
