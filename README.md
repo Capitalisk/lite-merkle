@@ -3,13 +3,13 @@ Lamport one-time signature scheme library.
 
 ## Installation
 
-```
+```bash
 npm install simple-lamport
 ```
 
 ## Usage
 
-```
+```js
 const SimpleLamport = require('simple-lamport');
 
 let lamport = new SimpleLamport();
@@ -23,6 +23,8 @@ let signature = lamport.sign('hello world', privateKey);
 // Verify message; returns true or false
 lamport.verify(message, signature, publicKey);
 ```
+
+Works on Node.js and in the browser.
 
 ### License
 
