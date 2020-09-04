@@ -1,8 +1,12 @@
 {
   "name": "simple-lamport",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Simple Lamport one-time signature library",
   "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/jondubois/simple-lamport.git"
+  },
   "scripts": {
     "build": "gulp browserify; gulp minify",
     "test": "mocha --reporter spec --timeout 3000 --slow 3000"
