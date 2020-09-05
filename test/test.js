@@ -8,14 +8,30 @@ describe('Unit tests', async () => {
 
   beforeEach(async () => {
     lamport = new SimpleLamport({
-      byteSize: 32,
-      encoding: 'base64'
+      seedEncoding: 'hex',
+      hashEncoding: 'base64'
     });
   });
 
   describe('Generate keys', async () => {
     it('should return a valid private key and public key pair', async () => {
       let { publicKey, privateKey } = lamport.generateKeys();
+      let rawPrivateKey = JSON.parse(privateKey);
+      let rawPublicKey = JSON.parse(publicKey);
+      assert.equal(rawPrivateKey.length, 2);
+      assert.equal(rawPrivateKey[0].length, 256);
+      assert.equal(rawPrivateKey[1].length, 256);
+      assert.equal(rawPublicKey.length, 2);
+      assert.equal(rawPublicKey[0].length, 256);
+      assert.equal(rawPublicKey[1].length, 256);
+    });
+  });
+
+  describe('Generate keys from seed', async () => {
+    it('should return a valid private key and public key pair from seed', async () => {
+      let seed = lamport.generateSeed();
+      let { publicKey, privateKey } = lamport.generateKeysFromSeed(seed, 0);
+      // assert.equal(Buffer.byteLength(seed, 'base64'), 32);
       let rawPrivateKey = JSON.parse(privateKey);
       let rawPublicKey = JSON.parse(publicKey);
       assert.equal(rawPrivateKey.length, 2);
