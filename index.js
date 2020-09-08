@@ -7,7 +7,7 @@ class SimpleLamport {
     this.hashEncoding = options.hashEncoding || 'base64';
     this.hashElementByteSize = options.hashElementByteSize || 32;
     this.seedEncoding = options.seedEncoding || 'hex';
-    this.seedByteSize = options.seedByteSize || 32;
+    this.seedByteSize = options.seedByteSize || 64;
     if (options.hashFunction) {
       this.hash = options.hashFunction;
     } else {
