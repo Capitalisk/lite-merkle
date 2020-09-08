@@ -15,7 +15,7 @@ describe('Unit tests', async () => {
 
   describe('Generate keys', async () => {
     it('should return a valid private key and public key pair', async () => {
-      let { publicKey, privateKey } = lamport.generateKeys();
+      let { privateKey, publicKey } = lamport.generateKeys();
       let rawPrivateKey = JSON.parse(privateKey);
       let rawPublicKey = JSON.parse(publicKey);
       assert.equal(rawPrivateKey.length, 2);
@@ -30,7 +30,7 @@ describe('Unit tests', async () => {
   describe('Generate keys from seed', async () => {
     it('should return a valid private key and public key pair from seed', async () => {
       let seed = lamport.generateSeed();
-      let { publicKey, privateKey } = lamport.generateKeysFromSeed(seed, 0);
+      let { privateKey, publicKey } = lamport.generateKeysFromSeed(seed, 0);
       // assert.equal(Buffer.byteLength(seed, 'base64'), 32);
       let rawPrivateKey = JSON.parse(privateKey);
       let rawPublicKey = JSON.parse(publicKey);
