@@ -31,7 +31,6 @@ describe('Unit tests', async () => {
     it('should return a valid private key and public key pair from seed', async () => {
       let seed = lamport.generateSeed();
       let { privateKey, publicKey } = lamport.generateKeysFromSeed(seed, 0);
-      // assert.equal(Buffer.byteLength(seed, 'base64'), 32);
       let rawPrivateKey = JSON.parse(privateKey);
       let rawPublicKey = JSON.parse(publicKey);
       assert.equal(rawPrivateKey.length, 2);
