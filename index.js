@@ -129,13 +129,13 @@ class ProperMerkle {
       Buffer.concat(authPath.map(item => Buffer.from(item, KEY_SIG_ENCODING)))
     ]);
 
-    return this._encodeSignaturePacket(signatureBuffer);
+    return this.encodeSignature(signatureBuffer);
   }
 
   verify(message, signature, publicRootHash) {
     let signaturePacket;
     try {
-      signaturePacket = this._decodeSignaturePacket(signature);
+      signaturePacket = this.decodeSignature(signature);
     } catch (error) {
       return false;
     }
@@ -183,14 +183,14 @@ class ProperMerkle {
     return this.lamport.hash(`${lesserItem}${greaterItem}`);
   }
 
-  _encodeSignaturePacket(rawSignaturePacket) {
+  encodeSignature(rawSignaturePacket) {
     if (this.signatureFormat === 'buffer') {
       return rawSignaturePacket;
     }
     return rawSignaturePacket.toString(this.signatureFormat);
   }
 
-  _decodeSignaturePacket(encodedSignaturePacket) {
+  decodeSignature(encodedSignaturePacket) {
     let signatureBuffer;
     if (this.signatureFormat === 'buffer') {
       signatureBuffer = encodedSignaturePacket;
