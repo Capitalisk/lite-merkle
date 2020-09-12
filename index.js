@@ -1,116 +1,140 @@
-const hash = require('hash.js');
-const randomBytes = require('randombytes');
+const SimpleLamport = require('simple-lamport');
+const DEFAULT_LEAF_COUNT = 128;
 
-class SimpleLamport {
+class SimpleMerkle {
   constructor(options) {
     options = options || {};
-    this.hashEncoding = options.hashEncoding || 'base64';
-    this.hashElementByteSize = options.hashElementByteSize || 32;
-    this.seedEncoding = options.seedEncoding || 'hex';
-    this.seedByteSize = options.seedByteSize || 64;
-    if (options.hashFunction) {
-      this.hash = options.hashFunction;
-    } else {
-      this.hash = this.sha256;
+
+    let leafCount = options.leafCount == null ? DEFAULT_LEAF_COUNT : options.leafCount;
+    let power = Math.log2(leafCount);
+    if (power % 1 !== 0) {
+      throw new Error('The leafCount option must be a power of 2');
     }
+    this.leafCount = leafCount;
+
+    this.lamport = new SimpleLamport({
+      keyFormat: options.keyFormat,
+      signatureFormat: options.signatureFormat,
+      hashEncoding: options.hashEncoding,
+      hashElementByteSize: options.hashElementByteSize,
+      seedEncoding: options.seedEncoding,
+      seedByteSize: options.seedByteSize,
+      hashFunction: options.hashFunction,
+    });
   }
 
   generateSeed() {
-    return randomBytes(this.seedByteSize).toString(this.seedEncoding);
+    return this.lamport.generateSeed();
   }
 
-  generateKeysFromSeed(seed, index) {
-    if (index == null) {
-      index = 0;
+  generateMSSTreeFromSeed(seed, treeIndex) {
+    let treeSeed = `${seed}-${treeIndex}`;
+    let privateKeys = [];
+    let publicKeys = [];
+    let merkleLeaves = [];
+
+    for (let i = 0; i < this.leafCount; i++) {
+      let keyPair = this.lamport.generateKeysFromSeed(treeSeed, i);
+      privateKeys.push(keyPair.privateKey);
+      publicKeys.push(keyPair.publicKey);
+      merkleLeaves.push(this.lamport.hash(keyPair.publicKey));
     }
-    let privateKey = [
-      this.generateRandomArrayFromSeed(256, `${seed}-${index}-a`),
-      this.generateRandomArrayFromSeed(256, `${seed}-${index}-b`)
-    ];
 
-    let publicKey = privateKey.map((privateKeyPart) => {
-      return privateKeyPart.map((encodedString) => this.hash(encodedString, this.hashEncoding));
-    });
+    let tree = [merkleLeaves];
 
-    return {
-      privateKey: JSON.stringify(privateKey),
-      publicKey: JSON.stringify(publicKey)
-    };
-  }
+    let lastLayer = merkleLeaves;
+    while (lastLayer.length > 1) {
+      let currentLayer = [];
 
-  generateKeys() {
-    let privateKey = [
-      this.generateRandomArray(256, this.hashElementByteSize),
-      this.generateRandomArray(256, this.hashElementByteSize)
-    ];
-
-    let publicKey = privateKey.map((privateKeyPart) => {
-      return privateKeyPart.map((encodedString) => this.hash(encodedString, this.hashEncoding));
-    });
-
-    return {
-      privateKey: JSON.stringify(privateKey),
-      publicKey: JSON.stringify(publicKey)
-    };
-  }
-
-  sign(message, privateKey) {
-    let privateKeyRaw = JSON.parse(privateKey);
-    let messageHash = this.sha256(message, this.hashEncoding);
-    let messageBitArray = this.convertEncodedStringToBitArray(messageHash);
-    let signature = messageBitArray.map((bit, index) => privateKeyRaw[bit][index]);
-
-    return JSON.stringify(signature);
-  }
-
-  verify(message, signature, publicKey) {
-    let signatureRaw = JSON.parse(signature);
-    let publicKeyRaw = JSON.parse(publicKey);
-    let messageHash = this.sha256(message, this.hashEncoding);
-    let messageBitArray = this.convertEncodedStringToBitArray(messageHash);
-
-    return messageBitArray.every((bit, index) => {
-      let signatureItemHash = this.hash(signatureRaw[index], this.hashEncoding);
-      let targetPublicKeyItem = publicKeyRaw[bit][index];
-      return signatureItemHash === targetPublicKeyItem;
-    });
-  }
-
-  sha256(message, encoding) {
-    let shasum = hash.sha256().update(message).digest('hex');
-    if (encoding === 'hex') {
-      return shasum;
-    }
-    return Buffer.from(shasum, 'hex').toString(encoding || 'base64');
-  }
-
-  generateRandomArray(length, elementBytes) {
-    let randomArray = [];
-    for (let i = 0; i < length; i++) {
-      randomArray.push(randomBytes(elementBytes).toString(this.hashEncoding));
-    }
-    return randomArray;
-  }
-
-  generateRandomArrayFromSeed(length, seed) {
-    let randomArray = [];
-    for (let i = 0; i < length; i++) {
-      randomArray.push(this.hash(`${seed}-${i}`).toString(this.hashEncoding));
-    }
-    return randomArray;
-  }
-
-  convertEncodedStringToBitArray(encodedString) {
-    let buffer = Buffer.from(encodedString, this.hashEncoding);
-
-    let bitArray = [];
-    for (let byte of buffer) {
-      for (let i = 0; i < 8; i++) {
-        bitArray.push(byte >> (7 - i) & 1);
+      let len = lastLayer.length;
+      for (let i = 0; i < len; i += 2) {
+        let leftItem = lastLayer[i];
+        let rightItem = lastLayer[i + 1];
+        let combinedHash = this.computeCombinedHash(leftItem, rightItem);
+        currentLayer.push(combinedHash);
       }
+      tree.push(currentLayer);
+      lastLayer = currentLayer;
     }
-    return bitArray;
+    let publicRootHash = lastLayer[0];
+
+    return {
+      treeIndex,
+      privateKeys,
+      publicKeys,
+      tree,
+      publicRootHash
+    };
+  }
+
+  sign(message, mssTree, leafIndex) {
+    let privateKey = mssTree.privateKeys[leafIndex];
+    let publicKey = mssTree.publicKeys[leafIndex];
+    let signature = this.lamport.sign(message, privateKey);
+    let authPath = this.computeAuthPath(mssTree, leafIndex);
+    let signaturePacket = {
+      publicKey,
+      signature,
+      authPath,
+      treeIndex: mssTree.treeIndex,
+      leafIndex
+    };
+
+    // TODO 222: Optimize serialization
+
+    return Buffer.from(JSON.stringify(signaturePacket), 'utf8').toString('base64');
+  }
+
+  verify(message, signature, publicRootHash) {
+    let signaturePacket;
+    try {
+      signaturePacket = JSON.parse(Buffer.from(signature, 'base64').toString('utf8'));
+    } catch (error) {
+      return false;
+    }
+    let signatureIsValid = this.lamport.verify(message, signaturePacket.signature, signaturePacket.publicKey);
+    if (!signatureIsValid) {
+      return false;
+    }
+    let publicKeyHash = this.lamport.hash(signaturePacket.publicKey);
+    let { authPath } = signaturePacket;
+
+    let compoundHash = publicKeyHash;
+    for (let authItem of authPath) {
+      compoundHash = this.computeCombinedHash(compoundHash, authItem);
+    }
+    return compoundHash === publicRootHash;
+  }
+
+  computeAuthPath(mssTree, leafIndex) {
+    let { tree } = mssTree;
+    let authPath = [];
+    let treeMaxIndex = tree.length - 1;
+    let currentIndex = leafIndex;
+
+    for (let i = 0; i < treeMaxIndex; i++) {
+      let currentLayer = tree[i];
+      let isEven = currentIndex % 2 === 0;
+      let sibling = isEven ? currentLayer[currentIndex + 1] : currentLayer[currentIndex - 1];
+      authPath.push(sibling);
+      currentIndex = currentIndex >> 1;
+    }
+
+    return authPath;
+  }
+
+  computeCombinedHash(stringA, stringB) {
+    let lesserItem;
+    let greaterItem;
+    if (stringA > stringB) {
+      greaterItem = stringA;
+      lesserItem = stringB;
+    } else {
+      greaterItem = stringB;
+      lesserItem = stringA;
+    }
+    return this.lamport.hash(`${lesserItem}${greaterItem}`);
   }
 }
 
-module.exports = SimpleLamport;
+module.exports = SimpleMerkle;

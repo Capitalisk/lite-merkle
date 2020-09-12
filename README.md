@@ -1,10 +1,10 @@
-# simple-lamport
-Lamport one-time signature scheme library.
+# simple-merkle
+Merkle signature scheme client library.
 
 ## Installation
 
 ```bash
-npm install simple-lamport
+npm install simple-merkle
 ```
 
 ## Usage
@@ -12,37 +12,21 @@ npm install simple-lamport
 ### Basic
 
 ```js
-const SimpleLamport = require('simple-lamport');
+const SimpleMerkle = require('simple-merkle');
 
-let lamport = new SimpleLamport();
+let merkle = new SimpleMerkle();
 
-// Generate private key and public key
-let { privateKey, publicKey } = lamport.generateKeys();
-
-let message = 'hello world';
-
-// Sign message
-let signature = lamport.sign(message, privateKey);
-
-// Verify message; returns true or false
-lamport.verify(message, signature, publicKey);
+// // Generate private key and public key // TODO 2222
+// let { privateKey, publicKey } = lamport.generateKeys();
+//
+// let message = 'hello world';
+//
+// // Sign message
+// let signature = lamport.sign(message, privateKey);
+//
+// // Verify message; returns true or false
+// lamport.verify(message, signature, publicKey);
 ```
-
-### Generate keys from from seed
-
-```js
-const SimpleLamport = require('simple-lamport');
-
-let lamport = new SimpleLamport();
-
-// Generate random secret seed
-let seed = lamport.generateSeed();
-
-// Generate private key and public key from a seed with index as second argument
-let { privateKey, publicKey } = lamport.generateKeysFromSeed(seed, 0);
-```
-
-Works on Node.js and in the browser.
 
 ## License
 

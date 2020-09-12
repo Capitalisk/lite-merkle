@@ -1,17 +1,18 @@
 {
-  "name": "simple-lamport",
-  "version": "1.2.0",
-  "description": "Simple Lamport one-time signature library",
+  "name": "simple-merkle",
+  "version": "1.0.0",
+  "description": "Merkle signature scheme client library",
   "main": "index.js",
   "repository": {
     "type": "git",
-    "url": "git://github.com/jondubois/simple-lamport.git"
+    "url": "git://github.com/jondubois/simple-merkle.git"
   },
   "scripts": {
     "build": "gulp browserify; gulp minify",
     "test": "mocha --reporter spec --timeout 3000 --slow 3000"
   },
   "keywords": [
+    "merkle",
     "lamport",
     "signature",
     "ots"
@@ -36,7 +37,6 @@
     "vinyl-source-stream": "^2.0.0"
   },
   "dependencies": {
-    "hash.js": "^1.1.7",
-    "randombytes": "^2.1.0"
+    "simple-lamport": "^2.0.1"
   }
 }

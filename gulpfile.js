@@ -18,7 +18,7 @@ var VERSION = require('./package.json').version;
 // declaration added by browserify.
 var FULL_HEADER = (
   '/**\n' +
-  ' * Simple Lamport v' + VERSION + '\n' +
+  ' * Simple Merkle v' + VERSION + '\n' +
   ' */\n '
 );
 
@@ -26,13 +26,13 @@ gulp.task('browserify', function (done) {
   var stream = browserify({
     builtins: ['_process', 'buffer'],
     entries: 'index.js',
-    standalone: 'SimpleLamport'
+    standalone: 'SimpleMerkle'
   })
     .require('./index.js', {
-      expose: 'simple-lamport'
+      expose: 'simple-merkle'
     })
     .bundle();
-  return stream.pipe(source('simple-lamport.js'))
+  return stream.pipe(source('simple-merkle.js'))
     // .pipe(insert.prepend(FULL_HEADER))
     .pipe(convertNewline({
       newline: 'lf',
@@ -42,7 +42,7 @@ gulp.task('browserify', function (done) {
 });
 
 gulp.task('minify', function () {
-  return gulp.src(DIST + 'simple-lamport.js')
+  return gulp.src(DIST + 'simple-merkle.js')
     .pipe(babel({
       comments: false
     }))
