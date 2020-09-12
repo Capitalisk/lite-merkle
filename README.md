@@ -14,18 +14,24 @@ npm install simple-merkle
 ```js
 const SimpleMerkle = require('simple-merkle');
 
-let merkle = new SimpleMerkle();
+(async () => {
+  let merkle = new SimpleMerkle();
 
-// // Generate private key and public key // TODO 2222
-// let { privateKey, publicKey } = lamport.generateKeys();
-//
-// let message = 'hello world';
-//
-// // Sign message
-// let signature = lamport.sign(message, privateKey);
-//
-// // Verify message; returns true or false
-// lamport.verify(message, signature, publicKey);
+  let seed = merkle.generateSeed();
+
+  // Generate Merkle Signature Scheme tree.
+  // For synchronous call, use merkle.generateMSSTreeFromSeedSync(seed, 0)
+  let mssTree = await merkle.generateMSSTreeFromSeed(seed, 0);
+
+  let message = 'hello world';
+
+  // Sign message; third argument is the leaf/key index in the MSS tree.
+  let signature = merkle.sign(message, mssTree, 0);
+
+  // Verify message; returns true or false.
+  merkle.verify(message, signature, mssTree.publicRootHash);
+})();
+
 ```
 
 ## License
