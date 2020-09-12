@@ -1,9 +1,13 @@
 const SimpleLamport = require('simple-lamport');
 const DEFAULT_LEAF_COUNT = 128;
+const SIG_ENTRY_COUNT = 256;
+const KEY_ENTRY_COUNT = 512;
+const KEY_SIG_ENCODING = 'base64';
 
 class SimpleMerkle {
   constructor(options) {
     options = options || {};
+    this.signatureFormat = options.signatureFormat || 'base64';
 
     let leafCount = options.leafCount == null ? DEFAULT_LEAF_COUNT : options.leafCount;
     let power = Math.log2(leafCount);
@@ -11,15 +15,13 @@ class SimpleMerkle {
       throw new Error('The leafCount option must be a power of 2');
     }
     this.leafCount = leafCount;
+    this.asyncPauseAfterCount = options.asyncPauseAfterCount || 5;
 
     this.lamport = new SimpleLamport({
-      keyFormat: options.keyFormat,
-      signatureFormat: options.signatureFormat,
-      hashEncoding: options.hashEncoding,
-      hashElementByteSize: options.hashElementByteSize,
+      keyFormat: KEY_SIG_ENCODING,
+      signatureFormat: KEY_SIG_ENCODING,
       seedEncoding: options.seedEncoding,
-      seedByteSize: options.seedByteSize,
-      hashFunction: options.hashFunction,
+      seedByteSize: options.seedByteSize
     });
   }
 
@@ -27,8 +29,56 @@ class SimpleMerkle {
     return this.lamport.generateSeed();
   }
 
-  generateMSSTreeFromSeed(seed, treeIndex) {
-    let treeSeed = `${seed}-${treeIndex}`;
+  // Asynchronous version of the method.
+  async generateMSSTreeFromSeed(seed, treeIndex) {
+    let treeSeed = this._getTreeSeedName(seed, treeIndex);
+    let privateKeys = [];
+    let publicKeys = [];
+    let merkleLeaves = [];
+
+    for (let i = 0; i < this.leafCount; i++) {
+      let keyPair = this.lamport.generateKeysFromSeed(treeSeed, i);
+      privateKeys.push(keyPair.privateKey);
+      publicKeys.push(keyPair.publicKey);
+      merkleLeaves.push(this.lamport.hash(keyPair.publicKey));
+      if (i % this.asyncPauseAfterCount === 0) {
+        await this._wait(0);
+      }
+    }
+
+    let tree = [merkleLeaves];
+    let lastLayer = merkleLeaves;
+
+    while (lastLayer.length > 1) {
+      let currentLayer = [];
+      let len = lastLayer.length;
+
+      for (let i = 0; i < len; i += 2) {
+        let leftItem = lastLayer[i];
+        let rightItem = lastLayer[i + 1];
+        let combinedHash = this.computeCombinedHash(leftItem, rightItem);
+        currentLayer.push(combinedHash);
+        if (i % this.asyncPauseAfterCount === 0) {
+          await this._wait(0);
+        }
+      }
+      tree.push(currentLayer);
+      lastLayer = currentLayer;
+    }
+    let publicRootHash = lastLayer[0];
+
+    return {
+      treeIndex,
+      privateKeys,
+      publicKeys,
+      tree,
+      publicRootHash
+    };
+  }
+
+  // Synchronous version of the method.
+  generateMSSTreeFromSeedSync(seed, treeIndex) {
+    let treeSeed = this._getTreeSeedName(seed, treeIndex);
     let privateKeys = [];
     let publicKeys = [];
     let merkleLeaves = [];
@@ -41,12 +91,12 @@ class SimpleMerkle {
     }
 
     let tree = [merkleLeaves];
-
     let lastLayer = merkleLeaves;
+
     while (lastLayer.length > 1) {
       let currentLayer = [];
-
       let len = lastLayer.length;
+
       for (let i = 0; i < len; i += 2) {
         let leftItem = lastLayer[i];
         let rightItem = lastLayer[i + 1];
@@ -72,23 +122,20 @@ class SimpleMerkle {
     let publicKey = mssTree.publicKeys[leafIndex];
     let signature = this.lamport.sign(message, privateKey);
     let authPath = this.computeAuthPath(mssTree, leafIndex);
-    let signaturePacket = {
-      publicKey,
-      signature,
-      authPath,
-      treeIndex: mssTree.treeIndex,
-      leafIndex
-    };
 
-    // TODO 222: Optimize serialization
+    let signatureBuffer = Buffer.concat([
+      Buffer.from(publicKey, KEY_SIG_ENCODING),
+      Buffer.from(signature, KEY_SIG_ENCODING),
+      Buffer.concat(authPath.map(item => Buffer.from(item, KEY_SIG_ENCODING)))
+    ]);
 
-    return Buffer.from(JSON.stringify(signaturePacket), 'utf8').toString('base64');
+    return this._encodeSignaturePacket(signatureBuffer);
   }
 
   verify(message, signature, publicRootHash) {
     let signaturePacket;
     try {
-      signaturePacket = JSON.parse(Buffer.from(signature, 'base64').toString('utf8'));
+      signaturePacket = this._decodeSignaturePacket(signature);
     } catch (error) {
       return false;
     }
@@ -134,6 +181,57 @@ class SimpleMerkle {
       lesserItem = stringA;
     }
     return this.lamport.hash(`${lesserItem}${greaterItem}`);
+  }
+
+  _encodeSignaturePacket(rawSignaturePacket) {
+    if (this.signatureFormat === 'buffer') {
+      return rawSignaturePacket;
+    }
+    return rawSignaturePacket.toString(this.signatureFormat);
+  }
+
+  _decodeSignaturePacket(encodedSignaturePacket) {
+    let signatureBuffer;
+    if (this.signatureFormat === 'buffer') {
+      signatureBuffer = encodedSignaturePacket;
+    } else {
+      signatureBuffer = Buffer.from(encodedSignaturePacket, this.signatureFormat);
+    }
+    let publicKeyByteLength = this.lamport.hashElementByteSize * KEY_ENTRY_COUNT;
+    let signatureByteLength = this.lamport.hashElementByteSize * SIG_ENTRY_COUNT;
+    let authPathByteLength = this.lamport.hashElementByteSize * SIG_ENTRY_COUNT;
+    let authBufferOffset = publicKeyByteLength + signatureByteLength;
+
+    let publicKey = signatureBuffer.slice(0, publicKeyByteLength).toString(KEY_SIG_ENCODING);
+    let signature = signatureBuffer.slice(publicKeyByteLength, authBufferOffset).toString(KEY_SIG_ENCODING);
+
+    let authPathBuffer = signatureBuffer.slice(authBufferOffset);
+    let bufferLength = authPathBuffer.length;
+    let authPathEntryCount = bufferLength / this.lamport.hashElementByteSize;
+    let authPath = [];
+
+    for (let i = 0; i < authPathEntryCount; i++) {
+      let startOffset = i * this.lamport.hashElementByteSize;
+      authPath.push(
+        authPathBuffer.slice(startOffset, startOffset + this.lamport.hashElementByteSize).toString(KEY_SIG_ENCODING)
+      );
+    }
+
+    return {
+      publicKey,
+      signature,
+      authPath
+    };
+  }
+
+  _getTreeSeedName(seed, treeIndex) {
+    return `${seed}-${treeIndex}`;
+  }
+
+  async _wait(duration) {
+    return new Promise((resolve, reject) => {
+      setTimeout(resolve, duration);
+    });
   }
 }
 

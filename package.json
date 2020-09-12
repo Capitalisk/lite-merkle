@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "gulp browserify; gulp minify",
-    "test": "mocha --reporter spec --timeout 3000 --slow 3000"
+    "test": "mocha --reporter spec --timeout 60000 --slow 60000"
   },
   "keywords": [
     "merkle",
