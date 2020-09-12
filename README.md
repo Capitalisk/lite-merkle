@@ -1,10 +1,10 @@
-# simple-merkle
+# proper-merkle
 Merkle signature scheme client library.
 
 ## Installation
 
 ```bash
-npm install simple-merkle
+npm install proper-merkle
 ```
 
 ## Usage
@@ -12,10 +12,10 @@ npm install simple-merkle
 ### Basic
 
 ```js
-const SimpleMerkle = require('simple-merkle');
+const ProperMerkle = require('proper-merkle');
 
 (async () => {
-  let merkle = new SimpleMerkle();
+  let merkle = new ProperMerkle();
 
   let seed = merkle.generateSeed();
 

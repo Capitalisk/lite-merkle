@@ -18,7 +18,7 @@ var VERSION = require('./package.json').version;
 // declaration added by browserify.
 var FULL_HEADER = (
   '/**\n' +
-  ' * Simple Merkle v' + VERSION + '\n' +
+  ' * Proper Merkle v' + VERSION + '\n' +
   ' */\n '
 );
 
@@ -26,13 +26,13 @@ gulp.task('browserify', function (done) {
   var stream = browserify({
     builtins: ['_process', 'buffer'],
     entries: 'index.js',
-    standalone: 'SimpleMerkle'
+    standalone: 'ProperMerkle'
   })
     .require('./index.js', {
-      expose: 'simple-merkle'
+      expose: 'proper-merkle'
     })
     .bundle();
-  return stream.pipe(source('simple-merkle.js'))
+  return stream.pipe(source('proper-merkle.js'))
     // .pipe(insert.prepend(FULL_HEADER))
     .pipe(convertNewline({
       newline: 'lf',
@@ -42,7 +42,7 @@ gulp.task('browserify', function (done) {
 });
 
 gulp.task('minify', function () {
-  return gulp.src(DIST + 'simple-merkle.js')
+  return gulp.src(DIST + 'proper-merkle.js')
     .pipe(babel({
       comments: false
     }))

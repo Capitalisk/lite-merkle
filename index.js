@@ -4,7 +4,7 @@ const SIG_ENTRY_COUNT = 256;
 const KEY_ENTRY_COUNT = 512;
 const KEY_SIG_ENCODING = 'base64';
 
-class SimpleMerkle {
+class ProperMerkle {
   constructor(options) {
     options = options || {};
     this.signatureFormat = options.signatureFormat || 'base64';
@@ -235,4 +235,4 @@ class SimpleMerkle {
   }
 }
 
-module.exports = SimpleMerkle;
+module.exports = ProperMerkle;

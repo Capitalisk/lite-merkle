@@ -1,12 +1,12 @@
 const assert = require('assert');
-const SimpleMerkle = require('../index');
+const ProperMerkle = require('../index');
 const hash = require('hash.js');
 
 describe('Unit tests', async () => {
   let merkle;
 
   beforeEach(async () => {
-    merkle = new SimpleMerkle({
+    merkle = new ProperMerkle({
       leafCount: 128,
       signatureFormat: 'base64'
     });
