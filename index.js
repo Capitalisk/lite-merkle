@@ -30,7 +30,7 @@ class ProperMerkle {
   }
 
   // Asynchronous version of the method.
-  async generateMSSTreeFromSeed(seed, treeIndex) {
+  async generateMSSTree(seed, treeIndex) {
     let treeSeed = this._getTreeSeedName(seed, treeIndex);
     let privateKeys = [];
     let publicKeys = [];
@@ -77,7 +77,7 @@ class ProperMerkle {
   }
 
   // Synchronous version of the method.
-  generateMSSTreeFromSeedSync(seed, treeIndex) {
+  generateMSSTreeSync(seed, treeIndex) {
     let treeSeed = this._getTreeSeedName(seed, treeIndex);
     let privateKeys = [];
     let publicKeys = [];

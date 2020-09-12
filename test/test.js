@@ -15,7 +15,7 @@ describe('Unit tests', async () => {
   describe('Generate MSS tree from seed', async () => {
     it('should return a valid MSS tree from seed', async () => {
       let seed = merkle.generateSeed();
-      let mssTree = await merkle.generateMSSTreeFromSeed(seed, 0);
+      let mssTree = await merkle.generateMSSTree(seed, 0);
 
       assert.equal('treeIndex' in mssTree, true);
       assert.equal('privateKeys' in mssTree, true);
@@ -28,7 +28,7 @@ describe('Unit tests', async () => {
   describe('Generate MSS tree from seed sync', async () => {
     it('should return a valid MSS tree from seed', async () => {
       let seed = merkle.generateSeed();
-      let mssTree = merkle.generateMSSTreeFromSeedSync(seed, 0);
+      let mssTree = merkle.generateMSSTreeSync(seed, 0);
 
       assert.equal('treeIndex' in mssTree, true);
       assert.equal('privateKeys' in mssTree, true);
@@ -45,7 +45,7 @@ describe('Unit tests', async () => {
 
     beforeEach(async () => {
       seed = merkle.generateSeed();
-      mssTree = await merkle.generateMSSTreeFromSeed(seed, 0);
+      mssTree = await merkle.generateMSSTree(seed, 0);
       publicRootHash = mssTree.publicRootHash;
     });
 
@@ -62,7 +62,7 @@ describe('Unit tests', async () => {
 
     beforeEach(async () => {
       seed = merkle.generateSeed();
-      mssTree = await merkle.generateMSSTreeFromSeed(seed, 0);
+      mssTree = await merkle.generateMSSTree(seed, 0);
       publicRootHash = mssTree.publicRootHash;
     });
 

@@ -1,6 +1,12 @@
 # proper-merkle
 Merkle signature scheme client library.
 
+## Overview
+
+This library provides a quantum-resistant mechanism for cryptographically signing messages such that multiple signatures can be associated with a single public key.
+It supports generating an unlimited number of MSS trees of various sizes from a single secret seed; this allows a single seed to be used to sign an unlimited number of messages.
+Lamport OTS is used as the underlying one-time signature scheme.
+
 ## Installation
 
 ```bash
@@ -26,8 +32,8 @@ const ProperMerkle = require('proper-merkle');
 
   // Generate Merkle Signature Scheme tree; second argument is the index of the tree.
   // An unlimited number of MSS trees can be generated from a single seed.
-  // For synchronous call, use generateMSSTreeFromSeedSync method.
-  let mssTree = await merkle.generateMSSTreeFromSeed(seed, 0);
+  // For synchronous call, use generateMSSTreeSync method.
+  let mssTree = await merkle.generateMSSTree(seed, 0);
 
   let message = 'hello world';
 
@@ -36,7 +42,7 @@ const ProperMerkle = require('proper-merkle');
   let signature = merkle.sign(message, mssTree, 0);
 
   // Verify message; returns true or false.
-  // publicRootHash is the Merkle root and it should be used as the public key.
+  // publicRootHash is the Merkle root; it should be used as the public key.
   merkle.verify(message, signature, mssTree.publicRootHash);
 })();
 
