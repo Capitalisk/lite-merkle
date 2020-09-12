@@ -15,20 +15,28 @@ npm install proper-merkle
 const ProperMerkle = require('proper-merkle');
 
 (async () => {
-  let merkle = new ProperMerkle();
+  // The leafCount option represents the number of signatures which can be generated
+  // from a single MSS tree. Trees with more leaves take longer to compute.
+  let merkle = new ProperMerkle({
+    leafCount: 128,
+    signatureFormat: 'base64'
+  });
 
   let seed = merkle.generateSeed();
 
-  // Generate Merkle Signature Scheme tree.
-  // For synchronous call, use merkle.generateMSSTreeFromSeedSync(seed, 0)
+  // Generate Merkle Signature Scheme tree; second argument is the index of the tree.
+  // An unlimited number of MSS trees can be generated from a single seed.
+  // For synchronous call, use generateMSSTreeFromSeedSync method.
   let mssTree = await merkle.generateMSSTreeFromSeed(seed, 0);
 
   let message = 'hello world';
 
-  // Sign message; third argument is the leaf/key index in the MSS tree.
+  // Sign message; third argument is the leaf/key index within the MSS tree.
+  // Each leaf index should only be used once (to produce a single signature).
   let signature = merkle.sign(message, mssTree, 0);
 
   // Verify message; returns true or false.
+  // publicRootHash is the Merkle root and it should be used as the public key.
   merkle.verify(message, signature, mssTree.publicRootHash);
 })();
 
