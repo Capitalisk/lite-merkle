@@ -18,7 +18,7 @@ npm install proper-merkle
 ### Basic
 
 ```js
-const ProperMerkle = require('proper-merkle');
+const ProperMerkle = require('proper-merkle');l
 
 (async () => {
   // The leafCount option represents the number of signatures which can be generated
@@ -47,6 +47,11 @@ const ProperMerkle = require('proper-merkle');
 })();
 
 ```
+
+### Signing unlimited messages
+
+Generating large MSS trees is expensive so it is recommended to generate smaller trees and to chain them together.
+This can be achieved by using one of the keys (leaves) from the current MSS tree to sign a message which contains the `publicRootHash` of the next MSS tree in the `generateMSSTree` sequence (at currentIndex + 1).
 
 ## License
 
