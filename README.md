@@ -51,7 +51,7 @@ const ProperMerkle = require('proper-merkle');l
 ### Signing unlimited messages
 
 Generating large MSS trees is expensive so it is recommended to generate smaller trees and to chain them together.
-This can be achieved by using one of the keys (leaves) from the current MSS tree to sign a message which contains the `publicRootHash` of the next MSS tree in the `generateMSSTree` sequence (at currentIndex + 1).
+This can be achieved by using one of the keys (leaves) from the current MSS tree to sign a message which contains the `publicRootHash` of the next MSS tree in the `generateMSSTree` sequence (at currentIndex + 1); it's important to do this before the current MSS tree runs out of keys. Never use the same key/leaf index multiple times.
 
 ## License
 
