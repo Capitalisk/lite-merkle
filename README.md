@@ -18,7 +18,7 @@ npm install proper-merkle
 ### Basic
 
 ```js
-const ProperMerkle = require('proper-merkle');l
+const ProperMerkle = require('proper-merkle');
 
 (async () => {
   // The leafCount option represents the number of signatures which can be generated
