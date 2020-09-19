@@ -1,5 +1,5 @@
 const SimpleLamport = require('simple-lamport');
-const DEFAULT_LEAF_COUNT = 128;
+const DEFAULT_LEAF_COUNT = 32;
 const SIG_ENTRY_COUNT = 256;
 const KEY_ENTRY_COUNT = 512;
 const KEY_SIG_ENCODING = 'base64';

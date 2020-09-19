@@ -7,7 +7,7 @@ describe('Unit tests', async () => {
 
   beforeEach(async () => {
     merkle = new ProperMerkle({
-      leafCount: 128,
+      leafCount: 32,
       signatureFormat: 'base64'
     });
   });
@@ -51,7 +51,7 @@ describe('Unit tests', async () => {
 
     it('should return signature as a string with the correct length', async () => {
       let signature = merkle.sign('test message', mssTree, 0);
-      assert.equal(Buffer.byteLength(signature, 'base64'), 512 * 32 + 256 * 32 + 32 * 7);
+      assert.equal(Buffer.byteLength(signature, 'base64'), 512 * 32 + 256 * 32 + 32 * 5);
     });
   });
 
