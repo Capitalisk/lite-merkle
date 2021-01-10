@@ -3896,8 +3896,8 @@ class ProperMerkle {
   }
 
   // Asynchronous version of the method.
-  async generateMSSTree(seed, treeIndex) {
-    let treeSeed = this._getTreeSeed(seed, treeIndex);
+  async generateMSSTree(seed, treeName) {
+    let treeSeed = this.deriveSeed(seed, treeName);
     let privateKeys = [];
     let publicKeys = [];
     let merkleLeaves = [];
@@ -3934,7 +3934,7 @@ class ProperMerkle {
     let publicRootHash = lastLayer[0];
 
     return {
-      treeIndex,
+      treeName,
       privateKeys,
       publicKeys,
       tree,
@@ -3943,8 +3943,8 @@ class ProperMerkle {
   }
 
   // Synchronous version of the method.
-  generateMSSTreeSync(seed, treeIndex) {
-    let treeSeed = this._getTreeSeed(seed, treeIndex);
+  generateMSSTreeSync(seed, treeName) {
+    let treeSeed = this.deriveSeed(seed, treeName);
     let privateKeys = [];
     let publicKeys = [];
     let merkleLeaves = [];
@@ -3975,7 +3975,7 @@ class ProperMerkle {
     let publicRootHash = lastLayer[0];
 
     return {
-      treeIndex,
+      treeName,
       privateKeys,
       publicKeys,
       tree,
@@ -4090,8 +4090,8 @@ class ProperMerkle {
     };
   }
 
-  _getTreeSeed(seed, treeIndex) {
-    return this.lamport.hmacHash(seed, this.seedEncoding, treeIndex.toString(), this.seedEncoding);
+  deriveSeed(seed, name) {
+    return this.lamport.hmacHash(seed, this.seedEncoding, name, this.seedEncoding);
   }
 
   async _wait(duration) {
