@@ -226,8 +226,8 @@ class ProperMerkle {
     };
   }
 
-  deriveSeed(seed, name) {
-    return this.lamport.hmacHash(seed, this.seedEncoding, name, this.seedEncoding);
+  deriveSeed(seed, treeName) {
+    return this.lamport.hmacHash(seed, this.seedEncoding, treeName, this.seedEncoding);
   }
 
   async _wait(duration) {
