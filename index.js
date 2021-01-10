@@ -1,7 +1,9 @@
 const SimpleLamport = require('simple-lamport');
 const DEFAULT_LEAF_COUNT = 32;
+const HASH_ELEMENT_BYTE_SIZE = 32;
 const SIG_ENTRY_COUNT = 256;
 const KEY_ENTRY_COUNT = 512;
+const DEFAULT_SEED_ENCODING = 'hex';
 const KEY_SIG_ENCODING = 'base64';
 
 class ProperMerkle {
@@ -16,12 +18,12 @@ class ProperMerkle {
     }
     this.leafCount = leafCount;
     this.asyncPauseAfterCount = options.asyncPauseAfterCount || 5;
+    this.seedEncoding = options.seedEncoding || DEFAULT_SEED_ENCODING;
 
     this.lamport = new SimpleLamport({
       keyFormat: KEY_SIG_ENCODING,
       signatureFormat: KEY_SIG_ENCODING,
-      seedEncoding: options.seedEncoding,
-      seedByteSize: options.seedByteSize
+      seedEncoding: this.seedEncoding
     });
   }
 
@@ -31,7 +33,7 @@ class ProperMerkle {
 
   // Asynchronous version of the method.
   async generateMSSTree(seed, treeIndex) {
-    let treeSeed = this._getTreeSeedName(seed, treeIndex);
+    let treeSeed = this._getTreeSeed(seed, treeIndex);
     let privateKeys = [];
     let publicKeys = [];
     let merkleLeaves = [];
@@ -78,7 +80,7 @@ class ProperMerkle {
 
   // Synchronous version of the method.
   generateMSSTreeSync(seed, treeIndex) {
-    let treeSeed = this._getTreeSeedName(seed, treeIndex);
+    let treeSeed = this._getTreeSeed(seed, treeIndex);
     let privateKeys = [];
     let publicKeys = [];
     let merkleLeaves = [];
@@ -197,9 +199,9 @@ class ProperMerkle {
     } else {
       signatureBuffer = Buffer.from(encodedSignaturePacket, this.signatureFormat);
     }
-    let publicKeyByteLength = this.lamport.hashElementByteSize * KEY_ENTRY_COUNT;
-    let signatureByteLength = this.lamport.hashElementByteSize * SIG_ENTRY_COUNT;
-    let authPathByteLength = this.lamport.hashElementByteSize * SIG_ENTRY_COUNT;
+    let publicKeyByteLength = HASH_ELEMENT_BYTE_SIZE * KEY_ENTRY_COUNT;
+    let signatureByteLength = HASH_ELEMENT_BYTE_SIZE * SIG_ENTRY_COUNT;
+    let authPathByteLength = HASH_ELEMENT_BYTE_SIZE * SIG_ENTRY_COUNT;
     let authBufferOffset = publicKeyByteLength + signatureByteLength;
 
     let publicKey = signatureBuffer.slice(0, publicKeyByteLength).toString(KEY_SIG_ENCODING);
@@ -207,13 +209,13 @@ class ProperMerkle {
 
     let authPathBuffer = signatureBuffer.slice(authBufferOffset);
     let bufferLength = authPathBuffer.length;
-    let authPathEntryCount = bufferLength / this.lamport.hashElementByteSize;
+    let authPathEntryCount = bufferLength / HASH_ELEMENT_BYTE_SIZE;
     let authPath = [];
 
     for (let i = 0; i < authPathEntryCount; i++) {
-      let startOffset = i * this.lamport.hashElementByteSize;
+      let startOffset = i * HASH_ELEMENT_BYTE_SIZE;
       authPath.push(
-        authPathBuffer.slice(startOffset, startOffset + this.lamport.hashElementByteSize).toString(KEY_SIG_ENCODING)
+        authPathBuffer.slice(startOffset, startOffset + HASH_ELEMENT_BYTE_SIZE).toString(KEY_SIG_ENCODING)
       );
     }
 
@@ -224,8 +226,8 @@ class ProperMerkle {
     };
   }
 
-  _getTreeSeedName(seed, treeIndex) {
-    return `${seed}-${treeIndex}`;
+  _getTreeSeed(seed, treeIndex) {
+    return this.lamport.hmacHash(seed, this.seedEncoding, treeIndex.toString(), this.seedEncoding);
   }
 
   async _wait(duration) {

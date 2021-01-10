@@ -3602,10 +3602,28 @@ SafeBuffer.allocUnsafeSlow = function (size) {
 
 },{"buffer":2}],21:[function(require,module,exports){
 (function (Buffer){
+const hash = require('hash.js');
+
+module.exports = function (secret, secretEncoding, message, outputEncoding) {
+  let shasum = hash.hmac(hash.sha256, Buffer.from(secret, secretEncoding))
+    .update(message)
+    .digest('hex');
+  if (outputEncoding === 'hex') {
+    return shasum;
+  }
+  return Buffer.from(shasum, 'hex').toString(outputEncoding || 'base64');
+};
+
+}).call(this,require("buffer").Buffer)
+},{"buffer":2,"hash.js":3}],22:[function(require,module,exports){
+(function (Buffer){
 const randomBytes = require('randombytes');
 const sha256 = require('./sha256');
+const hmacSha256 = require('./hmac-sha256');
 
 const KEY_SIG_ENTRY_COUNT = 256;
+const HASH_ELEMENT_BYTE_SIZE = 32;
+const SEED_BYTE_SIZE = 32;
 
 class SimpleLamport {
   constructor(options) {
@@ -3613,17 +3631,13 @@ class SimpleLamport {
     this.keyFormat = options.keyFormat || 'base64';
     this.signatureFormat = options.signatureFormat || 'base64';
     this.hashEncoding = options.hashEncoding || 'base64';
-    this.hashElementByteSize = options.hashElementByteSize || 32;
     this.seedEncoding = options.seedEncoding || 'hex';
-    this.seedByteSize = options.seedByteSize || 64;
 
     this.sha256 = sha256;
+    this.hmacSha256 = hmacSha256;
 
-    if (options.hashFunction) {
-      this.hash = options.hashFunction;
-    } else {
-      this.hash = this.sha256;
-    }
+    this.hash = this.sha256;
+    this.hmacHash = this.hmacSha256;
 
     if (this.keyFormat === 'object') {
       this.encodeKey = (rawKey) => {
@@ -3689,7 +3703,7 @@ class SimpleLamport {
   }
 
   generateSeed() {
-    return randomBytes(this.seedByteSize).toString(this.seedEncoding);
+    return randomBytes(SEED_BYTE_SIZE).toString(this.seedEncoding);
   }
 
   generateKeysFromSeed(seed, index) {
@@ -3697,8 +3711,8 @@ class SimpleLamport {
       index = 0;
     }
     let privateKey = [
-      this.generateRandomArrayFromSeed(KEY_SIG_ENTRY_COUNT, `${seed}-${index}-a`),
-      this.generateRandomArrayFromSeed(KEY_SIG_ENTRY_COUNT, `${seed}-${index}-b`)
+      this.generateRandomArrayFromSeed(KEY_SIG_ENTRY_COUNT, seed, `${index}-a`),
+      this.generateRandomArrayFromSeed(KEY_SIG_ENTRY_COUNT, seed, `${index}-b`)
     ];
 
     let publicKey = privateKey.map((privateKeyPart) => {
@@ -3713,8 +3727,8 @@ class SimpleLamport {
 
   generateKeys() {
     let privateKey = [
-      this.generateRandomArray(KEY_SIG_ENTRY_COUNT, this.hashElementByteSize),
-      this.generateRandomArray(KEY_SIG_ENTRY_COUNT, this.hashElementByteSize)
+      this.generateRandomArray(KEY_SIG_ENTRY_COUNT, HASH_ELEMENT_BYTE_SIZE),
+      this.generateRandomArray(KEY_SIG_ENTRY_COUNT, HASH_ELEMENT_BYTE_SIZE)
     ];
 
     let publicKey = privateKey.map((privateKeyPart) => {
@@ -3763,10 +3777,10 @@ class SimpleLamport {
     return randomArray;
   }
 
-  generateRandomArrayFromSeed(length, seed) {
+  generateRandomArrayFromSeed(length, seed, suffix) {
     let randomArray = [];
     for (let i = 0; i < length; i++) {
-      randomArray.push(this.hash(`${seed}-${i}`).toString(this.hashEncoding));
+      randomArray.push(this.hmacHash(seed, this.seedEncoding, `${suffix}-${i}`, this.hashEncoding));
     }
     return randomArray;
   }
@@ -3798,14 +3812,14 @@ class SimpleLamport {
     let keySecondPart = [];
     let key = [keyFirstPart, keySecondPart];
     for (let i = 0; i < KEY_SIG_ENTRY_COUNT; i++) {
-      let byteOffset = i * this.hashElementByteSize;
-      let bufferItem = encodedKey.slice(byteOffset, byteOffset + this.hashElementByteSize);
+      let byteOffset = i * HASH_ELEMENT_BYTE_SIZE;
+      let bufferItem = encodedKey.slice(byteOffset, byteOffset + HASH_ELEMENT_BYTE_SIZE);
       keyFirstPart.push(bufferItem.toString(this.hashEncoding));
     }
     let totalKeyLength = KEY_SIG_ENTRY_COUNT * 2;
     for (let i = KEY_SIG_ENTRY_COUNT; i < totalKeyLength; i++) {
-      let byteOffset = i * this.hashElementByteSize;
-      let bufferItem = encodedKey.slice(byteOffset, byteOffset + this.hashElementByteSize);
+      let byteOffset = i * HASH_ELEMENT_BYTE_SIZE;
+      let bufferItem = encodedKey.slice(byteOffset, byteOffset + HASH_ELEMENT_BYTE_SIZE);
       keySecondPart.push(bufferItem.toString(this.hashEncoding));
     }
     return key;
@@ -3822,8 +3836,8 @@ class SimpleLamport {
   _decodeSignatureFromBuffer(encodedSignature) {
     let signatureArray = [];
     for (let i = 0; i < KEY_SIG_ENTRY_COUNT; i++) {
-      let byteOffset = i * this.hashElementByteSize;
-      let bufferItem = encodedSignature.slice(byteOffset, byteOffset + this.hashElementByteSize);
+      let byteOffset = i * HASH_ELEMENT_BYTE_SIZE;
+      let bufferItem = encodedSignature.slice(byteOffset, byteOffset + HASH_ELEMENT_BYTE_SIZE);
       signatureArray.push(bufferItem.toString(this.hashEncoding));
     }
     return signatureArray;
@@ -3833,7 +3847,7 @@ class SimpleLamport {
 module.exports = SimpleLamport;
 
 }).call(this,require("buffer").Buffer)
-},{"./sha256":22,"buffer":2,"randombytes":19}],22:[function(require,module,exports){
+},{"./hmac-sha256":21,"./sha256":23,"buffer":2,"randombytes":19}],23:[function(require,module,exports){
 (function (Buffer){
 const hash = require('hash.js');
 
@@ -3850,8 +3864,10 @@ module.exports = function (message, encoding) {
 (function (Buffer){
 const SimpleLamport = require('simple-lamport');
 const DEFAULT_LEAF_COUNT = 32;
+const HASH_ELEMENT_BYTE_SIZE = 32;
 const SIG_ENTRY_COUNT = 256;
 const KEY_ENTRY_COUNT = 512;
+const DEFAULT_SEED_ENCODING = 'hex';
 const KEY_SIG_ENCODING = 'base64';
 
 class ProperMerkle {
@@ -3866,12 +3882,12 @@ class ProperMerkle {
     }
     this.leafCount = leafCount;
     this.asyncPauseAfterCount = options.asyncPauseAfterCount || 5;
+    this.seedEncoding = options.seedEncoding || DEFAULT_SEED_ENCODING;
 
     this.lamport = new SimpleLamport({
       keyFormat: KEY_SIG_ENCODING,
       signatureFormat: KEY_SIG_ENCODING,
-      seedEncoding: options.seedEncoding,
-      seedByteSize: options.seedByteSize
+      seedEncoding: this.seedEncoding
     });
   }
 
@@ -3881,7 +3897,7 @@ class ProperMerkle {
 
   // Asynchronous version of the method.
   async generateMSSTree(seed, treeIndex) {
-    let treeSeed = this._getTreeSeedName(seed, treeIndex);
+    let treeSeed = this._getTreeSeed(seed, treeIndex);
     let privateKeys = [];
     let publicKeys = [];
     let merkleLeaves = [];
@@ -3928,7 +3944,7 @@ class ProperMerkle {
 
   // Synchronous version of the method.
   generateMSSTreeSync(seed, treeIndex) {
-    let treeSeed = this._getTreeSeedName(seed, treeIndex);
+    let treeSeed = this._getTreeSeed(seed, treeIndex);
     let privateKeys = [];
     let publicKeys = [];
     let merkleLeaves = [];
@@ -4047,9 +4063,9 @@ class ProperMerkle {
     } else {
       signatureBuffer = Buffer.from(encodedSignaturePacket, this.signatureFormat);
     }
-    let publicKeyByteLength = this.lamport.hashElementByteSize * KEY_ENTRY_COUNT;
-    let signatureByteLength = this.lamport.hashElementByteSize * SIG_ENTRY_COUNT;
-    let authPathByteLength = this.lamport.hashElementByteSize * SIG_ENTRY_COUNT;
+    let publicKeyByteLength = HASH_ELEMENT_BYTE_SIZE * KEY_ENTRY_COUNT;
+    let signatureByteLength = HASH_ELEMENT_BYTE_SIZE * SIG_ENTRY_COUNT;
+    let authPathByteLength = HASH_ELEMENT_BYTE_SIZE * SIG_ENTRY_COUNT;
     let authBufferOffset = publicKeyByteLength + signatureByteLength;
 
     let publicKey = signatureBuffer.slice(0, publicKeyByteLength).toString(KEY_SIG_ENCODING);
@@ -4057,13 +4073,13 @@ class ProperMerkle {
 
     let authPathBuffer = signatureBuffer.slice(authBufferOffset);
     let bufferLength = authPathBuffer.length;
-    let authPathEntryCount = bufferLength / this.lamport.hashElementByteSize;
+    let authPathEntryCount = bufferLength / HASH_ELEMENT_BYTE_SIZE;
     let authPath = [];
 
     for (let i = 0; i < authPathEntryCount; i++) {
-      let startOffset = i * this.lamport.hashElementByteSize;
+      let startOffset = i * HASH_ELEMENT_BYTE_SIZE;
       authPath.push(
-        authPathBuffer.slice(startOffset, startOffset + this.lamport.hashElementByteSize).toString(KEY_SIG_ENCODING)
+        authPathBuffer.slice(startOffset, startOffset + HASH_ELEMENT_BYTE_SIZE).toString(KEY_SIG_ENCODING)
       );
     }
 
@@ -4074,8 +4090,8 @@ class ProperMerkle {
     };
   }
 
-  _getTreeSeedName(seed, treeIndex) {
-    return `${seed}-${treeIndex}`;
+  _getTreeSeed(seed, treeIndex) {
+    return this.lamport.hmacHash(seed, this.seedEncoding, treeIndex.toString(), this.seedEncoding);
   }
 
   async _wait(duration) {
@@ -4088,5 +4104,5 @@ class ProperMerkle {
 module.exports = ProperMerkle;
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":2,"simple-lamport":21}]},{},["proper-merkle"])("proper-merkle")
+},{"buffer":2,"simple-lamport":22}]},{},["proper-merkle"])("proper-merkle")
 });
