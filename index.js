@@ -1,9 +1,10 @@
 const SimpleLamport = require('simple-lamport');
 const DEFAULT_LEAF_COUNT = 32;
 const HASH_ELEMENT_BYTE_SIZE = 32;
+const SEED_BYTE_SIZE = 32;
 const SIG_ENTRY_COUNT = 256;
 const KEY_ENTRY_COUNT = 512;
-const DEFAULT_SEED_ENCODING = 'hex';
+const DEFAULT_SEED_ENCODING = 'base64';
 const KEY_SIG_ENCODING = 'base64';
 
 class ProperMerkle {
@@ -227,6 +228,18 @@ class ProperMerkle {
   }
 
   deriveSeed(seed, treeName) {
+    let seedBuffer = Buffer.from(seed, this.seedEncoding);
+    if (seedBuffer.byteLength !== SEED_BYTE_SIZE) {
+      throw new Error(
+        `Failed to derive new seed for tree name ${
+          treeName
+        } because the specified seed encoded as ${
+          this.seedEncoding
+        } did not meet the seed length requirement of ${
+          SEED_BYTE_SIZE
+        } bytes - Check that the seed encoding is correct`
+      );
+    }
     return this.lamport.hmacHash(seed, this.seedEncoding, treeName, this.seedEncoding);
   }
 
