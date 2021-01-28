@@ -37,6 +37,6 @@
     "vinyl-source-stream": "^2.0.0"
   },
   "dependencies": {
-    "simple-lamport": "^4.0.0"
+    "simple-lamport": "^4.0.1"
   }
 }
