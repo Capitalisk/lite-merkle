@@ -3631,7 +3631,7 @@ class SimpleLamport {
     this.keyFormat = options.keyFormat || 'base64';
     this.signatureFormat = options.signatureFormat || 'base64';
     this.hashEncoding = options.hashEncoding || 'base64';
-    this.seedEncoding = options.seedEncoding || 'hex';
+    this.seedEncoding = options.seedEncoding || 'base64';
 
     this.sha256 = sha256;
     this.hmacSha256 = hmacSha256;
@@ -3707,6 +3707,16 @@ class SimpleLamport {
   }
 
   generateKeysFromSeed(seed, index) {
+    let seedBuffer = Buffer.from(seed, this.seedEncoding);
+    if (seedBuffer.byteLength < SEED_BYTE_SIZE) {
+      throw new Error(
+        `The specified seed encoded as ${
+          this.seedEncoding
+        } did not meet the minimum seed length requirement of ${
+          SEED_BYTE_SIZE
+        } bytes - Check that the seed encoding is correct`
+      );
+    }
     if (index == null) {
       index = 0;
     }
@@ -3865,9 +3875,10 @@ module.exports = function (message, encoding) {
 const SimpleLamport = require('simple-lamport');
 const DEFAULT_LEAF_COUNT = 32;
 const HASH_ELEMENT_BYTE_SIZE = 32;
+const SEED_BYTE_SIZE = 32;
 const SIG_ENTRY_COUNT = 256;
 const KEY_ENTRY_COUNT = 512;
-const DEFAULT_SEED_ENCODING = 'hex';
+const DEFAULT_SEED_ENCODING = 'base64';
 const KEY_SIG_ENCODING = 'base64';
 
 class ProperMerkle {
@@ -4090,8 +4101,20 @@ class ProperMerkle {
     };
   }
 
-  deriveSeed(seed, name) {
-    return this.lamport.hmacHash(seed, this.seedEncoding, name, this.seedEncoding);
+  deriveSeed(seed, treeName) {
+    let seedBuffer = Buffer.from(seed, this.seedEncoding);
+    if (seedBuffer.byteLength < SEED_BYTE_SIZE) {
+      throw new Error(
+        `Failed to derive new seed for tree name ${
+          treeName
+        } because the specified seed encoded as ${
+          this.seedEncoding
+        } did not meet the minimum seed length requirement of ${
+          SEED_BYTE_SIZE
+        } bytes - Check that the seed encoding is correct`
+      );
+    }
+    return this.lamport.hmacHash(seed, this.seedEncoding, treeName, this.seedEncoding);
   }
 
   async _wait(duration) {
