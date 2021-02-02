@@ -45,7 +45,7 @@ class ProperMerkle {
       let keyPair = this.lamport.generateKeysFromSeed(treeSeed, i);
       privateKeys.push(keyPair.privateKey);
       publicKeys.push(keyPair.publicKey);
-      merkleLeaves.push(this.lamport.hash(keyPair.publicKey));
+      merkleLeaves.push(this.lamport.sha256(keyPair.publicKey, this.nodeEncoding));
       if (i % this.asyncPauseAfterCount === 0) {
         await this._wait(0);
       }
@@ -70,14 +70,13 @@ class ProperMerkle {
       tree.push(currentLayer);
       lastLayer = currentLayer;
     }
-    let publicRootHash = lastLayer[0];
 
     return {
       treeName,
       privateKeys,
       publicKeys,
       tree,
-      publicRootHash
+      publicRootHash: lastLayer[0]
     };
   }
 
@@ -92,7 +91,7 @@ class ProperMerkle {
       let keyPair = this.lamport.generateKeysFromSeed(treeSeed, i);
       privateKeys.push(keyPair.privateKey);
       publicKeys.push(keyPair.publicKey);
-      merkleLeaves.push(this.lamport.hash(keyPair.publicKey));
+      merkleLeaves.push(this.lamport.sha256(keyPair.publicKey, this.nodeEncoding));
     }
 
     let tree = [merkleLeaves];
@@ -111,14 +110,13 @@ class ProperMerkle {
       tree.push(currentLayer);
       lastLayer = currentLayer;
     }
-    let publicRootHash = lastLayer[0];
 
     return {
       treeName,
       privateKeys,
       publicKeys,
       tree,
-      publicRootHash
+      publicRootHash: lastLayer[0]
     };
   }
 
@@ -131,7 +129,7 @@ class ProperMerkle {
     let signatureBuffer = Buffer.concat([
       Buffer.from(publicKey, KEY_SIG_ENCODING),
       Buffer.from(signature, KEY_SIG_ENCODING),
-      Buffer.concat(authPath.map(item => Buffer.from(item, KEY_SIG_ENCODING)))
+      Buffer.concat(authPath.map(item => Buffer.from(item, this.nodeEncoding)))
     ]);
 
     return this.encodeSignature(signatureBuffer);
@@ -148,7 +146,7 @@ class ProperMerkle {
     if (!signatureIsValid) {
       return false;
     }
-    let publicKeyHash = this.lamport.hash(signaturePacket.publicKey);
+    let publicKeyHash = this.lamport.sha256(signaturePacket.publicKey, this.nodeEncoding);
     let { authPath } = signaturePacket;
 
     let compoundHash = publicKeyHash;
@@ -185,7 +183,7 @@ class ProperMerkle {
       greaterItem = stringB;
       lesserItem = stringA;
     }
-    return this.lamport.hash(`${lesserItem}${greaterItem}`, this.nodeEncoding);
+    return this.lamport.sha256(`${lesserItem}${greaterItem}`, this.nodeEncoding);
   }
 
   encodeSignature(rawSignaturePacket) {
@@ -218,7 +216,7 @@ class ProperMerkle {
     for (let i = 0; i < authPathEntryCount; i++) {
       let startOffset = i * HASH_ELEMENT_BYTE_SIZE;
       authPath.push(
-        authPathBuffer.slice(startOffset, startOffset + HASH_ELEMENT_BYTE_SIZE).toString(KEY_SIG_ENCODING)
+        authPathBuffer.slice(startOffset, startOffset + HASH_ELEMENT_BYTE_SIZE).toString(this.nodeEncoding)
       );
     }
 
