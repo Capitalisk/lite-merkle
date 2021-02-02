@@ -1,6 +1,6 @@
 {
   "name": "proper-merkle",
-  "version": "3.0.2",
+  "version": "3.1.0",
   "description": "Merkle signature scheme client library",
   "main": "index.js",
   "repository": {
