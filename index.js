@@ -5,6 +5,7 @@ const SEED_BYTE_SIZE = 32;
 const SIG_ENTRY_COUNT = 256;
 const KEY_ENTRY_COUNT = 512;
 const DEFAULT_SEED_ENCODING = 'base64';
+const DEFAULT_NODE_ENCODING = 'base64';
 const KEY_SIG_ENCODING = 'base64';
 
 class ProperMerkle {
@@ -20,6 +21,7 @@ class ProperMerkle {
     this.leafCount = leafCount;
     this.asyncPauseAfterCount = options.asyncPauseAfterCount || 5;
     this.seedEncoding = options.seedEncoding || DEFAULT_SEED_ENCODING;
+    this.nodeEncoding = options.nodeEncoding || DEFAULT_NODE_ENCODING;
 
     this.lamport = new SimpleLamport({
       keyFormat: KEY_SIG_ENCODING,
@@ -183,7 +185,7 @@ class ProperMerkle {
       greaterItem = stringB;
       lesserItem = stringA;
     }
-    return this.lamport.hash(`${lesserItem}${greaterItem}`);
+    return this.lamport.hash(`${lesserItem}${greaterItem}`, this.nodeEncoding);
   }
 
   encodeSignature(rawSignaturePacket) {
