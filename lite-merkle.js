@@ -2044,7 +2044,7 @@ BlockHash.prototype._pad = function pad() {
   return res;
 };
 
-},{"./utils":14,"minimalistic-assert":17}],5:[function(require,module,exports){
+},{"./utils":14,"minimalistic-assert":20}],5:[function(require,module,exports){
 'use strict';
 
 var utils = require('./utils');
@@ -2093,7 +2093,7 @@ Hmac.prototype.digest = function digest(enc) {
   return this.outer.digest(enc);
 };
 
-},{"./utils":14,"minimalistic-assert":17}],6:[function(require,module,exports){
+},{"./utils":14,"minimalistic-assert":20}],6:[function(require,module,exports){
 'use strict';
 
 var utils = require('./utils');
@@ -2465,7 +2465,7 @@ SHA256.prototype._digest = function digest(enc) {
     return utils.split32(this.h, 'big');
 };
 
-},{"../common":4,"../utils":14,"./common":13,"minimalistic-assert":17}],11:[function(require,module,exports){
+},{"../common":4,"../utils":14,"./common":13,"minimalistic-assert":20}],11:[function(require,module,exports){
 'use strict';
 
 var utils = require('../utils');
@@ -2834,7 +2834,7 @@ function g1_512_lo(xh, xl) {
   return r;
 }
 
-},{"../common":4,"../utils":14,"minimalistic-assert":17}],13:[function(require,module,exports){
+},{"../common":4,"../utils":14,"minimalistic-assert":20}],13:[function(require,module,exports){
 'use strict';
 
 var utils = require('../utils');
@@ -3165,7 +3165,7 @@ function shr64_lo(ah, al, num) {
 }
 exports.shr64_lo = shr64_lo;
 
-},{"inherits":16,"minimalistic-assert":17}],15:[function(require,module,exports){
+},{"inherits":16,"minimalistic-assert":20}],15:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = (nBytes * 8) - mLen - 1
@@ -3281,6 +3281,378 @@ if (typeof Object.create === 'function') {
 }
 
 },{}],17:[function(require,module,exports){
+(function (Buffer){
+const hash = require('hash.js');
+
+module.exports = function (secret, secretEncoding, message, outputEncoding) {
+  let shasum = hash.hmac(hash.sha256, Buffer.from(secret, secretEncoding))
+    .update(message)
+    .digest('hex');
+  if (outputEncoding === 'hex') {
+    return shasum;
+  }
+  return Buffer.from(shasum, 'hex').toString(outputEncoding || 'base64');
+};
+
+}).call(this,require("buffer").Buffer)
+},{"buffer":2,"hash.js":3}],18:[function(require,module,exports){
+(function (Buffer){
+const randomBytes = require('randombytes');
+const sha256 = require('./sha256');
+const hmacSha256 = require('./hmac-sha256');
+
+const CHECKSUM_BYTE_SIZE = 1;
+const KEY_SIG_ENTRY_COUNT = 264;
+const MAX_CHECKSUM = 255;
+const HASH_ELEMENT_BYTE_SIZE = 32;
+const SEED_BYTE_SIZE = 32;
+
+class LiteLamport {
+  constructor(options) {
+    options = options || {};
+    this.keyFormat = options.keyFormat || 'base64';
+    this.signatureFormat = options.signatureFormat || 'base64';
+    this.hashEncoding = options.hashEncoding || 'base64';
+    this.seedEncoding = options.seedEncoding || 'base64';
+
+    this.sha256 = sha256;
+    this.hmacSha256 = hmacSha256;
+
+    if (this.keyFormat === 'object') {
+      this.encodeKey = (rawKey) => {
+        return rawKey;
+      };
+      this.decodeKey = (encodedkey) => {
+        this._validateRawKeyFormat(encodedkey);
+        return encodedkey;
+      };
+    } else if (this.keyFormat === 'json') {
+      this.encodeKey = (rawKey) => {
+        return JSON.stringify(rawKey);
+      };
+      this.decodeKey = (encodedKey) => {
+        let decodedKey = JSON.parse(encodedKey);
+        this._validateRawKeyFormat(decodedKey);
+        return decodedKey;
+      };
+    } else if (this.keyFormat === 'buffer') {
+      this.encodeKey = (rawKey) => {
+        return this._encodeKeyToBuffer(rawKey);
+      };
+      this.decodeKey = (encodedKey) => {
+        return this._decodeKeyFromBuffer(encodedKey);
+      };
+    } else {
+      this.encodeKey = (rawKey) => {
+        return this._encodeKeyToBuffer(rawKey).toString(this.keyFormat);
+      };
+      this.decodeKey = (encodedKey) => {
+        let keyBuffer = Buffer.from(encodedKey, this.keyFormat);
+        return this._decodeKeyFromBuffer(keyBuffer);
+      };
+    }
+
+    if (this.signatureFormat === 'object') {
+      this.encodeSignature = (rawSignature) => {
+        return rawSignature;
+      };
+      this.decodeSignature = (encodedSignature) => {
+        this._validateRawSignatureFormat(encodedSignature);
+        return encodedSignature;
+      };
+    } else if (this.signatureFormat === 'json') {
+      this.encodeSignature = (rawSignature) => {
+        return JSON.stringify(rawSignature);
+      };
+      this.decodeSignature = (encodedSignature) => {
+        let decodedSignature = JSON.parse(encodedSignature);
+        this._validateRawSignatureFormat(decodedSignature);
+        return decodedSignature;
+      };
+    } else if (this.signatureFormat === 'buffer') {
+      this.encodeSignature = (rawSignature) => {
+        return this._encodeSignatureToBuffer(rawSignature);
+      };
+      this.decodeSignature = (encodedSignature) => {
+        return this._decodeSignatureFromBuffer(encodedSignature);
+      };
+    } else {
+      this.encodeSignature = (rawSignature) => {
+        return this._encodeSignatureToBuffer(rawSignature).toString(this.signatureFormat);
+      };
+      this.decodeSignature = (encodedSignature) => {
+        let signatureBuffer = Buffer.from(encodedSignature, this.signatureFormat);
+        return this._decodeSignatureFromBuffer(signatureBuffer);
+      };
+    }
+  }
+
+  generateSeed() {
+    return randomBytes(SEED_BYTE_SIZE).toString(this.seedEncoding);
+  }
+
+  generateKeysFromSeed(seed, index) {
+    let seedBuffer = Buffer.from(seed, this.seedEncoding);
+    if (seedBuffer.byteLength < SEED_BYTE_SIZE) {
+      throw new Error(
+        `The specified seed encoded as ${
+          this.seedEncoding
+        } did not meet the minimum seed length requirement of ${
+          SEED_BYTE_SIZE
+        } bytes - Check that the seed encoding is correct`
+      );
+    }
+    if (index == null) {
+      index = 0;
+    }
+    let privateKey = this.generateRandomArrayFromSeed(KEY_SIG_ENTRY_COUNT, seed, index);
+    let publicKey = privateKey.map(encodedString => this.sha256(encodedString, this.hashEncoding));
+
+    return {
+      privateKey: this.encodeKey(privateKey),
+      publicKey: this.encodeKey(publicKey)
+    };
+  }
+
+  generateKeys() {
+    let privateKey = this.generateRandomArray(KEY_SIG_ENTRY_COUNT, HASH_ELEMENT_BYTE_SIZE);
+    let publicKey = privateKey.map(encodedString => this.sha256(encodedString, this.hashEncoding));
+
+    return {
+      privateKey: this.encodeKey(privateKey),
+      publicKey: this.encodeKey(publicKey)
+    };
+  }
+
+  sign(message, privateKey) {
+    let privateKeyRaw = this.decodeKey(privateKey);
+    let messageHash = this.sha256(message, this.hashEncoding);
+    let messageBitArray = this.convertEncodedStringToBitArray(messageHash);
+    let checksum = Math.min(
+      messageBitArray.reduce((total, bit) => total + (bit ^ 1), 0),
+      MAX_CHECKSUM
+    );
+    let checksumBuffer = Buffer.alloc(CHECKSUM_BYTE_SIZE).fill(checksum);
+    let checksumBitArray = this.convertBufferToBitArray(checksumBuffer);
+    for (let bit of checksumBitArray) {
+      messageBitArray.push(bit);
+    }
+    let signature = messageBitArray
+      .map((bit, index) => bit ? privateKeyRaw[index] : null)
+      .filter(item => item);
+
+    return this.encodeSignature(signature);
+  }
+
+  verify(message, signature, publicKey) {
+    let signatureRaw;
+    let publicKeyRaw;
+    try {
+      signatureRaw = this.decodeSignature(signature);
+      publicKeyRaw = this.decodeKey(publicKey);
+    } catch (error) {
+      return false;
+    }
+    let invertedSignatureRaw = signatureRaw.reverse();
+    let messageHash = this.sha256(message, this.hashEncoding);
+    let messageBitArray = this.convertEncodedStringToBitArray(messageHash);
+    let checksum = Math.min(
+      messageBitArray.reduce((total, bit) => total + (bit ^ 1), 0),
+      MAX_CHECKSUM
+    );
+    let checksumBuffer = Buffer.alloc(CHECKSUM_BYTE_SIZE).fill(checksum);
+    let checksumBitArray = this.convertBufferToBitArray(checksumBuffer);
+
+    for (let bit of checksumBitArray) {
+      messageBitArray.push(bit);
+    }
+
+    return messageBitArray.every((bit, index) => {
+      if (!bit) {
+        return true;
+      }
+      if (!invertedSignatureRaw.length) {
+        return false;
+      }
+      let nextSignatureItem = invertedSignatureRaw.pop();
+      let signatureItemHash = this.sha256(nextSignatureItem, this.hashEncoding);
+      let targetPublicKeyItem = publicKeyRaw[index];
+      return signatureItemHash === targetPublicKeyItem;
+    });
+  }
+
+  generateRandomArray(length, elementBytes) {
+    let randomArray = [];
+    for (let i = 0; i < length; i++) {
+      randomArray.push(randomBytes(elementBytes).toString(this.hashEncoding));
+    }
+    return randomArray;
+  }
+
+  generateRandomArrayFromSeed(length, seed, suffix) {
+    let randomArray = [];
+    for (let i = 0; i < length; i++) {
+      randomArray.push(this.hmacSha256(seed, this.seedEncoding, `${suffix}-${i}`, this.hashEncoding));
+    }
+    return randomArray;
+  }
+
+  convertBufferToBitArray(buffer) {
+    let bitArray = [];
+    for (let byte of buffer) {
+      for (let i = 0; i < 8; i++) {
+        bitArray.push(byte >> (7 - i) & 1);
+      }
+    }
+    return bitArray;
+  }
+
+  convertEncodedStringToBitArray(encodedString) {
+    let buffer = Buffer.from(encodedString, this.hashEncoding);
+    return this.convertBufferToBitArray(buffer);
+  }
+
+  _validateRawKeyFormat(key) {
+    if (!Array.isArray(key)) {
+      throw new Error(
+        'The specified key was in an invalid format - Expected an array'
+      );
+    }
+    if (key.length !== KEY_SIG_ENTRY_COUNT) {
+      throw new Error(
+        `The specified key had an invalid length - Contained ${
+          key.length
+        } items but expected ${
+          KEY_SIG_ENTRY_COUNT
+        } items`
+      );
+    }
+    let areAllItemsValid = key.every(item => {
+      if (typeof item !== 'string') {
+        return false;
+      }
+      return Buffer.byteLength(item, this.hashEncoding) === HASH_ELEMENT_BYTE_SIZE;
+    });
+    if (!areAllItemsValid) {
+      throw new Error(
+        'The specified key contained invalid items'
+      );
+    }
+  }
+
+  _validateRawSignatureFormat(signature) {
+    if (!Array.isArray(signature)) {
+      throw new Error(
+        'The specified signature was in an invalid format - Expected an array'
+      );
+    }
+    if (signature.length > KEY_SIG_ENTRY_COUNT) {
+      throw new Error(
+        `The specified signature had an invalid length - Contained ${
+          signature.length
+        } items but expected no more than ${
+          KEY_SIG_ENTRY_COUNT
+        } items`
+      );
+    }
+    let areAllItemsValid = signature.every(item => {
+      if (typeof item !== 'string') {
+        return false;
+      }
+      return Buffer.byteLength(item, this.hashEncoding) === HASH_ELEMENT_BYTE_SIZE;
+    });
+    if (!areAllItemsValid) {
+      throw new Error(
+        'The specified signature contained invalid items'
+      );
+    }
+  }
+
+  _encodeKeyToBuffer(rawKey) {
+    let bufferArray = [];
+    for (let item of rawKey) {
+      bufferArray.push(Buffer.from(item, this.hashEncoding));
+    }
+    return Buffer.concat(bufferArray);
+  }
+
+  _decodeKeyFromBuffer(encodedKey) {
+    let key = [];
+    let expectedByteSize = KEY_SIG_ENTRY_COUNT * HASH_ELEMENT_BYTE_SIZE;
+    if (encodedKey.byteLength !== expectedByteSize) {
+      throw new Error(
+        `The specified key had an invalid length - Was ${
+          encodedKey.byteLength
+        } but expected ${
+          expectedByteSize
+        } bytes`
+      );
+    }
+    let entryCount = encodedKey.byteLength / HASH_ELEMENT_BYTE_SIZE;
+    for (let i = 0; i < entryCount; i++) {
+      let byteOffset = i * HASH_ELEMENT_BYTE_SIZE;
+      let bufferItem = encodedKey.slice(byteOffset, byteOffset + HASH_ELEMENT_BYTE_SIZE);
+      key.push(bufferItem.toString(this.hashEncoding));
+    }
+    return key;
+  }
+
+  _encodeSignatureToBuffer(rawSignature) {
+    let bufferArray = [];
+    for (let item of rawSignature) {
+      bufferArray.push(Buffer.from(item, this.hashEncoding));
+    }
+    return Buffer.concat(bufferArray);
+  }
+
+  _decodeSignatureFromBuffer(encodedSignature) {
+    let signatureArray = [];
+    let maxExpectedByteSize = KEY_SIG_ENTRY_COUNT * HASH_ELEMENT_BYTE_SIZE;
+    if (encodedSignature.byteLength > maxExpectedByteSize) {
+      throw new Error(
+        `The specified key had an invalid length - Was ${
+          encodedSignature.byteLength
+        } but expected no more than ${
+          maxExpectedByteSize
+        } bytes`
+      );
+    }
+    if (encodedSignature.byteLength % HASH_ELEMENT_BYTE_SIZE !== 0) {
+      throw new Error(
+        `The specified key had an invalid length - Was ${
+          encodedSignature.byteLength
+        } bytes but expected it to be a multiple of ${
+          HASH_ELEMENT_BYTE_SIZE
+        }`
+      );
+    }
+    let entryCount = encodedSignature.byteLength / HASH_ELEMENT_BYTE_SIZE;
+    for (let i = 0; i < entryCount; i++) {
+      let byteOffset = i * HASH_ELEMENT_BYTE_SIZE;
+      let bufferItem = encodedSignature.slice(byteOffset, byteOffset + HASH_ELEMENT_BYTE_SIZE);
+      signatureArray.push(bufferItem.toString(this.hashEncoding));
+    }
+    return signatureArray;
+  }
+}
+
+module.exports = LiteLamport;
+
+}).call(this,require("buffer").Buffer)
+},{"./hmac-sha256":17,"./sha256":19,"buffer":2,"randombytes":22}],19:[function(require,module,exports){
+(function (Buffer){
+const hash = require('hash.js');
+
+module.exports = function (message, encoding) {
+  let shasum = hash.sha256().update(message).digest('hex');
+  if (encoding === 'hex') {
+    return shasum;
+  }
+  return Buffer.from(shasum, 'hex').toString(encoding || 'base64');
+};
+
+}).call(this,require("buffer").Buffer)
+},{"buffer":2,"hash.js":3}],20:[function(require,module,exports){
 module.exports = assert;
 
 function assert(val, msg) {
@@ -3293,7 +3665,7 @@ assert.equal = function assertEqual(l, r, msg) {
     throw new Error(msg || ('Assertion failed: ' + l + ' != ' + r));
 };
 
-},{}],18:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -3479,7 +3851,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],19:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 (function (process,global){
 'use strict'
 
@@ -3533,7 +3905,7 @@ function randomBytes (size, cb) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"_process":18,"safe-buffer":20}],20:[function(require,module,exports){
+},{"_process":21,"safe-buffer":23}],23:[function(require,module,exports){
 /*! safe-buffer. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 /* eslint-disable node/no-deprecated-api */
 var buffer = require('buffer')
@@ -3600,286 +3972,17 @@ SafeBuffer.allocUnsafeSlow = function (size) {
   return buffer.SlowBuffer(size)
 }
 
-},{"buffer":2}],21:[function(require,module,exports){
+},{"buffer":2}],"lite-merkle":[function(require,module,exports){
 (function (Buffer){
-const hash = require('hash.js');
+const LiteLamport = require('lite-lamport');
 
-module.exports = function (secret, secretEncoding, message, outputEncoding) {
-  let shasum = hash.hmac(hash.sha256, Buffer.from(secret, secretEncoding))
-    .update(message)
-    .digest('hex');
-  if (outputEncoding === 'hex') {
-    return shasum;
-  }
-  return Buffer.from(shasum, 'hex').toString(outputEncoding || 'base64');
-};
-
-}).call(this,require("buffer").Buffer)
-},{"buffer":2,"hash.js":3}],22:[function(require,module,exports){
-(function (Buffer){
-const randomBytes = require('randombytes');
-const sha256 = require('./sha256');
-const hmacSha256 = require('./hmac-sha256');
-
-const KEY_SIG_ENTRY_COUNT = 256;
+const DEFAULT_LEAF_COUNT = 64;
 const HASH_ELEMENT_BYTE_SIZE = 32;
 const SEED_BYTE_SIZE = 32;
-
-class SimpleLamport {
-  constructor(options) {
-    options = options || {};
-    this.keyFormat = options.keyFormat || 'base64';
-    this.signatureFormat = options.signatureFormat || 'base64';
-    this.hashEncoding = options.hashEncoding || 'base64';
-    this.seedEncoding = options.seedEncoding || 'base64';
-
-    this.sha256 = sha256;
-    this.hmacSha256 = hmacSha256;
-
-    this.hash = this.sha256;
-    this.hmacHash = this.hmacSha256;
-
-    if (this.keyFormat === 'object') {
-      this.encodeKey = (rawKey) => {
-        return rawKey;
-      };
-      this.decodeKey = (encodedkey) => {
-        return encodedkey;
-      };
-    } else if (this.keyFormat === 'json') {
-      this.encodeKey = (rawKey) => {
-        return JSON.stringify(rawKey);
-      };
-      this.decodeKey = (encodedKey) => {
-        return JSON.parse(encodedKey);
-      };
-    } else if (this.keyFormat === 'buffer') {
-      this.encodeKey = (rawKey) => {
-        return this._encodeKeyToBuffer(rawKey);
-      };
-      this.decodeKey = (encodedKey) => {
-        return this._decodeKeyFromBuffer(encodedKey);
-      };
-    } else {
-      this.encodeKey = (rawKey) => {
-        return this._encodeKeyToBuffer(rawKey).toString(this.keyFormat);
-      };
-      this.decodeKey = (encodedKey) => {
-        let keyBuffer = Buffer.from(encodedKey, this.keyFormat);
-        return this._decodeKeyFromBuffer(keyBuffer);
-      };
-    }
-
-    if (this.signatureFormat === 'object') {
-      this.encodeSignature = (rawSignature) => {
-        return rawSignature;
-      };
-      this.decodeSignature = (encodedSignature) => {
-        return encodedSignature;
-      };
-    } else if (this.signatureFormat === 'json') {
-      this.encodeSignature = (rawSignature) => {
-        return JSON.stringify(rawSignature);
-      };
-      this.decodeSignature = (encodedSignature) => {
-        return JSON.parse(encodedSignature);
-      };
-    } else if (this.signatureFormat === 'buffer') {
-      this.encodeSignature = (rawSignature) => {
-        return this._encodeSignatureToBuffer(rawSignature);
-      };
-      this.decodeSignature = (encodedSignature) => {
-        return this._decodeSignatureFromBuffer(encodedSignature);
-      };
-    } else {
-      this.encodeSignature = (rawSignature) => {
-        return this._encodeSignatureToBuffer(rawSignature).toString(this.signatureFormat);
-      };
-      this.decodeSignature = (encodedSignature) => {
-        let signatureBuffer = Buffer.from(encodedSignature, this.signatureFormat);
-        return this._decodeSignatureFromBuffer(signatureBuffer);
-      };
-    }
-  }
-
-  generateSeed() {
-    return randomBytes(SEED_BYTE_SIZE).toString(this.seedEncoding);
-  }
-
-  generateKeysFromSeed(seed, index) {
-    let seedBuffer = Buffer.from(seed, this.seedEncoding);
-    if (seedBuffer.byteLength < SEED_BYTE_SIZE) {
-      throw new Error(
-        `The specified seed encoded as ${
-          this.seedEncoding
-        } did not meet the minimum seed length requirement of ${
-          SEED_BYTE_SIZE
-        } bytes - Check that the seed encoding is correct`
-      );
-    }
-    if (index == null) {
-      index = 0;
-    }
-    let privateKey = [
-      this.generateRandomArrayFromSeed(KEY_SIG_ENTRY_COUNT, seed, `${index}-a`),
-      this.generateRandomArrayFromSeed(KEY_SIG_ENTRY_COUNT, seed, `${index}-b`)
-    ];
-
-    let publicKey = privateKey.map((privateKeyPart) => {
-      return privateKeyPart.map((encodedString) => this.hash(encodedString, this.hashEncoding));
-    });
-
-    return {
-      privateKey: this.encodeKey(privateKey),
-      publicKey: this.encodeKey(publicKey)
-    };
-  }
-
-  generateKeys() {
-    let privateKey = [
-      this.generateRandomArray(KEY_SIG_ENTRY_COUNT, HASH_ELEMENT_BYTE_SIZE),
-      this.generateRandomArray(KEY_SIG_ENTRY_COUNT, HASH_ELEMENT_BYTE_SIZE)
-    ];
-
-    let publicKey = privateKey.map((privateKeyPart) => {
-      return privateKeyPart.map((encodedString) => this.hash(encodedString, this.hashEncoding));
-    });
-
-    return {
-      privateKey: this.encodeKey(privateKey),
-      publicKey: this.encodeKey(publicKey)
-    };
-  }
-
-  sign(message, privateKey) {
-    let privateKeyRaw = this.decodeKey(privateKey);
-    let messageHash = this.sha256(message, this.hashEncoding);
-    let messageBitArray = this.convertEncodedStringToBitArray(messageHash);
-    let signature = messageBitArray.map((bit, index) => privateKeyRaw[bit][index]);
-
-    return this.encodeSignature(signature);
-  }
-
-  verify(message, signature, publicKey) {
-    let signatureRaw;
-    let publicKeyRaw;
-    try {
-      signatureRaw = this.decodeSignature(signature);
-      publicKeyRaw = this.decodeKey(publicKey);
-    } catch (error) {
-      return false;
-    }
-    let messageHash = this.sha256(message, this.hashEncoding);
-    let messageBitArray = this.convertEncodedStringToBitArray(messageHash);
-
-    return messageBitArray.every((bit, index) => {
-      let signatureItemHash = this.hash(signatureRaw[index], this.hashEncoding);
-      let targetPublicKeyItem = publicKeyRaw[bit][index];
-      return signatureItemHash === targetPublicKeyItem;
-    });
-  }
-
-  generateRandomArray(length, elementBytes) {
-    let randomArray = [];
-    for (let i = 0; i < length; i++) {
-      randomArray.push(randomBytes(elementBytes).toString(this.hashEncoding));
-    }
-    return randomArray;
-  }
-
-  generateRandomArrayFromSeed(length, seed, suffix) {
-    let randomArray = [];
-    for (let i = 0; i < length; i++) {
-      randomArray.push(this.hmacHash(seed, this.seedEncoding, `${suffix}-${i}`, this.hashEncoding));
-    }
-    return randomArray;
-  }
-
-  convertEncodedStringToBitArray(encodedString) {
-    let buffer = Buffer.from(encodedString, this.hashEncoding);
-
-    let bitArray = [];
-    for (let byte of buffer) {
-      for (let i = 0; i < 8; i++) {
-        bitArray.push(byte >> (7 - i) & 1);
-      }
-    }
-    return bitArray;
-  }
-
-  _encodeKeyToBuffer(rawKey) {
-    let bufferArray = [];
-    for (let keyPart of rawKey) {
-      for (let item of keyPart) {
-        bufferArray.push(Buffer.from(item, this.hashEncoding));
-      }
-    }
-    return Buffer.concat(bufferArray);
-  }
-
-  _decodeKeyFromBuffer(encodedKey) {
-    let keyFirstPart = [];
-    let keySecondPart = [];
-    let key = [keyFirstPart, keySecondPart];
-    for (let i = 0; i < KEY_SIG_ENTRY_COUNT; i++) {
-      let byteOffset = i * HASH_ELEMENT_BYTE_SIZE;
-      let bufferItem = encodedKey.slice(byteOffset, byteOffset + HASH_ELEMENT_BYTE_SIZE);
-      keyFirstPart.push(bufferItem.toString(this.hashEncoding));
-    }
-    let totalKeyLength = KEY_SIG_ENTRY_COUNT * 2;
-    for (let i = KEY_SIG_ENTRY_COUNT; i < totalKeyLength; i++) {
-      let byteOffset = i * HASH_ELEMENT_BYTE_SIZE;
-      let bufferItem = encodedKey.slice(byteOffset, byteOffset + HASH_ELEMENT_BYTE_SIZE);
-      keySecondPart.push(bufferItem.toString(this.hashEncoding));
-    }
-    return key;
-  }
-
-  _encodeSignatureToBuffer(rawSignature) {
-    let bufferArray = [];
-    for (let item of rawSignature) {
-      bufferArray.push(Buffer.from(item, this.hashEncoding));
-    }
-    return Buffer.concat(bufferArray);
-  }
-
-  _decodeSignatureFromBuffer(encodedSignature) {
-    let signatureArray = [];
-    for (let i = 0; i < KEY_SIG_ENTRY_COUNT; i++) {
-      let byteOffset = i * HASH_ELEMENT_BYTE_SIZE;
-      let bufferItem = encodedSignature.slice(byteOffset, byteOffset + HASH_ELEMENT_BYTE_SIZE);
-      signatureArray.push(bufferItem.toString(this.hashEncoding));
-    }
-    return signatureArray;
-  }
-}
-
-module.exports = SimpleLamport;
-
-}).call(this,require("buffer").Buffer)
-},{"./hmac-sha256":21,"./sha256":23,"buffer":2,"randombytes":19}],23:[function(require,module,exports){
-(function (Buffer){
-const hash = require('hash.js');
-
-module.exports = function (message, encoding) {
-  let shasum = hash.sha256().update(message).digest('hex');
-  if (encoding === 'hex') {
-    return shasum;
-  }
-  return Buffer.from(shasum, 'hex').toString(encoding || 'base64');
-};
-
-}).call(this,require("buffer").Buffer)
-},{"buffer":2,"hash.js":3}],"lite-merkle":[function(require,module,exports){
-(function (Buffer){
-const SimpleLamport = require('simple-lamport');
-const DEFAULT_LEAF_COUNT = 32;
-const HASH_ELEMENT_BYTE_SIZE = 32;
-const SEED_BYTE_SIZE = 32;
-const SIG_ENTRY_COUNT = 256;
-const KEY_ENTRY_COUNT = 512;
 const DEFAULT_SEED_ENCODING = 'base64';
+const DEFAULT_NODE_ENCODING = 'base64';
 const KEY_SIG_ENCODING = 'base64';
+const KEY_ENTRY_COUNT = 264;
 
 class LiteMerkle {
   constructor(options) {
@@ -3894,8 +3997,9 @@ class LiteMerkle {
     this.leafCount = leafCount;
     this.asyncPauseAfterCount = options.asyncPauseAfterCount || 5;
     this.seedEncoding = options.seedEncoding || DEFAULT_SEED_ENCODING;
+    this.nodeEncoding = options.nodeEncoding || DEFAULT_NODE_ENCODING;
 
-    this.lamport = new SimpleLamport({
+    this.lamport = new LiteLamport({
       keyFormat: KEY_SIG_ENCODING,
       signatureFormat: KEY_SIG_ENCODING,
       seedEncoding: this.seedEncoding
@@ -3917,7 +4021,7 @@ class LiteMerkle {
       let keyPair = this.lamport.generateKeysFromSeed(treeSeed, i);
       privateKeys.push(keyPair.privateKey);
       publicKeys.push(keyPair.publicKey);
-      merkleLeaves.push(this.lamport.hash(keyPair.publicKey));
+      merkleLeaves.push(this.lamport.sha256(keyPair.publicKey, this.nodeEncoding));
       if (i % this.asyncPauseAfterCount === 0) {
         await this._wait(0);
       }
@@ -3942,14 +4046,13 @@ class LiteMerkle {
       tree.push(currentLayer);
       lastLayer = currentLayer;
     }
-    let publicRootHash = lastLayer[0];
 
     return {
       treeName,
       privateKeys,
       publicKeys,
       tree,
-      publicRootHash
+      publicRootHash: lastLayer[0]
     };
   }
 
@@ -3964,7 +4067,7 @@ class LiteMerkle {
       let keyPair = this.lamport.generateKeysFromSeed(treeSeed, i);
       privateKeys.push(keyPair.privateKey);
       publicKeys.push(keyPair.publicKey);
-      merkleLeaves.push(this.lamport.hash(keyPair.publicKey));
+      merkleLeaves.push(this.lamport.sha256(keyPair.publicKey, this.nodeEncoding));
     }
 
     let tree = [merkleLeaves];
@@ -3983,30 +4086,27 @@ class LiteMerkle {
       tree.push(currentLayer);
       lastLayer = currentLayer;
     }
-    let publicRootHash = lastLayer[0];
 
     return {
       treeName,
       privateKeys,
       publicKeys,
       tree,
-      publicRootHash
+      publicRootHash: lastLayer[0]
     };
   }
 
   sign(message, mssTree, leafIndex) {
     let privateKey = mssTree.privateKeys[leafIndex];
     let publicKey = mssTree.publicKeys[leafIndex];
-    let signature = this.lamport.sign(message, privateKey);
     let authPath = this.computeAuthPath(mssTree, leafIndex);
+    let signature = this.lamport.sign(message, privateKey);
 
-    let signatureBuffer = Buffer.concat([
-      Buffer.from(publicKey, KEY_SIG_ENCODING),
-      Buffer.from(signature, KEY_SIG_ENCODING),
-      Buffer.concat(authPath.map(item => Buffer.from(item, KEY_SIG_ENCODING)))
-    ]);
-
-    return this.encodeSignature(signatureBuffer);
+    return this.encodeSignature({
+      publicKey,
+      authPath,
+      signature
+    });
   }
 
   verify(message, signature, publicRootHash) {
@@ -4020,7 +4120,7 @@ class LiteMerkle {
     if (!signatureIsValid) {
       return false;
     }
-    let publicKeyHash = this.lamport.hash(signaturePacket.publicKey);
+    let publicKeyHash = this.lamport.sha256(signaturePacket.publicKey, this.nodeEncoding);
     let { authPath } = signaturePacket;
 
     let compoundHash = publicKeyHash;
@@ -4057,14 +4157,20 @@ class LiteMerkle {
       greaterItem = stringB;
       lesserItem = stringA;
     }
-    return this.lamport.hash(`${lesserItem}${greaterItem}`);
+    return this.lamport.sha256(`${lesserItem}${greaterItem}`, this.nodeEncoding);
   }
 
-  encodeSignature(rawSignaturePacket) {
+  encodeSignature({publicKey, authPath, signature}) {
+    let signaturePacket = Buffer.concat([
+      Buffer.from(publicKey, KEY_SIG_ENCODING),
+      Buffer.concat(authPath.map(item => Buffer.from(item, this.nodeEncoding))),
+      Buffer.from(signature, KEY_SIG_ENCODING)
+    ]);
+
     if (this.signatureFormat === 'buffer') {
-      return rawSignaturePacket;
+      return signaturePacket;
     }
-    return rawSignaturePacket.toString(this.signatureFormat);
+    return signaturePacket.toString(this.signatureFormat);
   }
 
   decodeSignature(encodedSignaturePacket) {
@@ -4075,29 +4181,28 @@ class LiteMerkle {
       signatureBuffer = Buffer.from(encodedSignaturePacket, this.signatureFormat);
     }
     let publicKeyByteLength = HASH_ELEMENT_BYTE_SIZE * KEY_ENTRY_COUNT;
-    let signatureByteLength = HASH_ELEMENT_BYTE_SIZE * SIG_ENTRY_COUNT;
-    let authPathByteLength = HASH_ELEMENT_BYTE_SIZE * SIG_ENTRY_COUNT;
-    let authBufferOffset = publicKeyByteLength + signatureByteLength;
+    let authPathEntryCount = Math.log2(this.leafCount);
+    let authPathByteLength = HASH_ELEMENT_BYTE_SIZE * authPathEntryCount;
+    let signatureBufferOffset = publicKeyByteLength + authPathByteLength;
 
     let publicKey = signatureBuffer.slice(0, publicKeyByteLength).toString(KEY_SIG_ENCODING);
-    let signature = signatureBuffer.slice(publicKeyByteLength, authBufferOffset).toString(KEY_SIG_ENCODING);
 
-    let authPathBuffer = signatureBuffer.slice(authBufferOffset);
-    let bufferLength = authPathBuffer.length;
-    let authPathEntryCount = bufferLength / HASH_ELEMENT_BYTE_SIZE;
+    let authPathBuffer = signatureBuffer.slice(publicKeyByteLength, signatureBufferOffset);
     let authPath = [];
 
     for (let i = 0; i < authPathEntryCount; i++) {
       let startOffset = i * HASH_ELEMENT_BYTE_SIZE;
       authPath.push(
-        authPathBuffer.slice(startOffset, startOffset + HASH_ELEMENT_BYTE_SIZE).toString(KEY_SIG_ENCODING)
+        authPathBuffer.slice(startOffset, startOffset + HASH_ELEMENT_BYTE_SIZE).toString(this.nodeEncoding)
       );
     }
 
+    let signature = signatureBuffer.slice(signatureBufferOffset).toString(KEY_SIG_ENCODING);
+
     return {
       publicKey,
-      signature,
-      authPath
+      authPath,
+      signature
     };
   }
 
@@ -4114,7 +4219,7 @@ class LiteMerkle {
         } bytes - Check that the seed encoding is correct`
       );
     }
-    return this.lamport.hmacHash(seed, this.seedEncoding, treeName, this.seedEncoding);
+    return this.lamport.hmacSha256(seed, this.seedEncoding, treeName, this.seedEncoding);
   }
 
   async _wait(duration) {
@@ -4127,5 +4232,5 @@ class LiteMerkle {
 module.exports = LiteMerkle;
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":2,"simple-lamport":22}]},{},["lite-merkle"])("lite-merkle")
+},{"buffer":2,"lite-lamport":18}]},{},["lite-merkle"])("lite-merkle")
 });

@@ -26,13 +26,13 @@ gulp.task('browserify', function (done) {
   var stream = browserify({
     builtins: ['_process', 'buffer'],
     entries: 'index.js',
-    standalone: 'ProperMerkle'
+    standalone: 'LiteMerkle'
   })
     .require('./index.js', {
-      expose: 'proper-merkle'
+      expose: 'lite-merkle'
     })
     .bundle();
-  return stream.pipe(source('proper-merkle.js'))
+  return stream.pipe(source('lite-merkle.js'))
     // .pipe(insert.prepend(FULL_HEADER))
     .pipe(convertNewline({
       newline: 'lf',
@@ -42,7 +42,7 @@ gulp.task('browserify', function (done) {
 });
 
 gulp.task('minify', function () {
-  return gulp.src(DIST + 'proper-merkle.js')
+  return gulp.src(DIST + 'lite-merkle.js')
     .pipe(babel({
       comments: false
     }))

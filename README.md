@@ -1,4 +1,4 @@
-# proper-merkle
+# lite-merkle
 Merkle signature scheme client library.
 
 ## Overview
@@ -10,7 +10,7 @@ Lamport OTS is used as the underlying one-time signature scheme.
 ## Installation
 
 ```bash
-npm install proper-merkle
+npm install lite-merkle
 ```
 
 ## Usage
@@ -18,12 +18,12 @@ npm install proper-merkle
 ### Basic
 
 ```js
-const ProperMerkle = require('proper-merkle');
+const LiteMerkle = require('lite-merkle');
 
 (async () => {
   // The leafCount option represents the number of signatures which can be generated
   // from a single MSS tree. Trees with more leaves take longer to compute.
-  let merkle = new ProperMerkle({
+  let merkle = new LiteMerkle({
     leafCount: 128,
     signatureFormat: 'base64'
   });
