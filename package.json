@@ -1,6 +1,6 @@
 {
   "name": "lite-merkle",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Merkle signature scheme client library",
   "main": "index.js",
   "repository": {
@@ -37,6 +37,6 @@
     "vinyl-source-stream": "^2.0.0"
   },
   "dependencies": {
-    "lite-lamport": "^1.0.3"
+    "lite-lamport": "^1.0.4"
   }
 }
