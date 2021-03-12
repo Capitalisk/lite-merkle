@@ -5,7 +5,7 @@
   "main": "index.js",
   "repository": {
     "type": "git",
-    "url": "git://github.com/jondubois/lite-merkle.git"
+    "url": "git://github.com/Capitalisk/lite-merkle.git"
   },
   "scripts": {
     "build": "gulp browserify; gulp minify",
