@@ -144,14 +144,21 @@ class LiteMerkle {
     if (!signatureIsValid) {
       return false;
     }
-    let publicKeyHash = this.lamport.sha256(signaturePacket.publicKey, this.nodeEncoding);
-    let { authPath } = signaturePacket;
+    return this.verifyPublicKey(signaturePacket.publicKey, signaturePacket.authPath, publicRootHash);
+  }
 
+  verifyPublicKey(publicKey, authPath, publicRootHash) {
+    let publicKeyHash = this.lamport.sha256(publicKey, this.nodeEncoding);
     let compoundHash = publicKeyHash;
     for (let authItem of authPath) {
       compoundHash = this.computeCombinedHash(compoundHash, authItem);
     }
     return compoundHash === publicRootHash;
+  }
+
+  verifyPrivateKey(privateKey, authPath, publicRootHash) {
+    let publicKey = this.lamport.getPublicKeyFromPrivateKey(privateKey);
+    return this.verifyPublicKey(publicKey, authPath, publicRootHash);
   }
 
   computeAuthPath(mssTree, leafIndex) {
