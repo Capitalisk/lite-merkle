@@ -1,6 +1,6 @@
 {
   "name": "lite-merkle",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Merkle signature scheme client library",
   "main": "index.js",
   "repository": {
@@ -8,7 +8,7 @@
     "url": "git://github.com/Capitalisk/lite-merkle.git"
   },
   "scripts": {
-    "build": "gulp browserify; gulp minify",
+    "build": "./node_modules/.bin/rollup --config ./rollup.config.js",
     "test": "mocha --reporter spec --timeout 60000 --slow 60000"
   },
   "keywords": [
@@ -20,23 +20,12 @@
   "author": "Jonathan Gros-Dubois",
   "license": "MIT",
   "devDependencies": {
-    "@babel/core": "^7.12.10",
-    "@babel/preset-env": "^7.12.11",
-    "babel-plugin-minify-dead-code-elimination": "^0.5.0",
-    "browserify": "^16.2.3",
-    "es-check": "^5.1.4",
-    "gulp": "^4.0.0",
-    "gulp-babel": "^8.0.0",
-    "gulp-cli": "^2.0.1",
-    "gulp-convert-newline": "^0.0.3",
-    "gulp-insert": "^0.5.0",
-    "gulp-rename": "^1.4.0",
-    "gulp-uglify": "^3.0.1",
-    "mocha": "^8.2.1",
-    "uglify-es": "^3.3.9",
-    "vinyl-source-stream": "^2.0.0"
+    "@rollup/plugin-commonjs": "^29.0.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "mocha": "^11.7.5"
   },
   "dependencies": {
-    "lite-lamport": "^1.1.0"
+    "lite-lamport": "^2.0.1"
   }
 }
