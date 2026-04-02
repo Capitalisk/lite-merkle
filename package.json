@@ -22,10 +22,13 @@
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
-    "@rollup/plugin-terser": "^0.4.4",
-    "mocha": "^11.7.5"
+    "@rollup/plugin-terser": "^1.0.0",
+    "mocha": "^11.3.0"
+  },
+  "overrides": {
+    "serialize-javascript": "^7.0.5"
   },
   "dependencies": {
-    "lite-lamport": "^2.0.1"
+    "lite-lamport": "^2.0.3"
   }
 }
