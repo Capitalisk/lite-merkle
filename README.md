@@ -53,6 +53,10 @@ const LiteMerkle = require('lite-merkle');
 Generating large MSS trees is expensive so it is recommended to generate smaller trees and to chain them together.
 This can be achieved by using one of the keys (leaves) from the current MSS tree to sign a message which contains the `publicRootHash` of the next MSS tree in the `generateMSSTree` sequence (at currentIndex + 1); it's important to do this before the current MSS tree runs out of keys. Never use the same key/leaf index multiple times.
 
+## Notes
+
+The underlying Lamport implementation uses a 1-byte checksum over the 256-bit message hash. While this technically cannot represent the maximum possible count of 256 zero-bits, exploiting this would require finding a SHA-256 hash consisting entirely of zero-bits, which is computationally equivalent to breaking SHA-256 itself.
+
 ## License
 
 MIT

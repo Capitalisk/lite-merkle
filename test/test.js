@@ -55,6 +55,40 @@ describe('Unit tests', async () => {
     });
   });
 
+  describe('Sign with invalid leafIndex', async () => {
+    let seed;
+    let mssTree;
+
+    beforeEach(async () => {
+      seed = merkle.generateSeed();
+      mssTree = await merkle.generateMSSTree(seed, 'main-0');
+    });
+
+    it('should throw an error if leafIndex is negative', async () => {
+      assert.throws(() => {
+        merkle.sign('test message', mssTree, -1);
+      });
+    });
+
+    it('should throw an error if leafIndex is >= leafCount', async () => {
+      assert.throws(() => {
+        merkle.sign('test message', mssTree, 64);
+      });
+    });
+
+    it('should throw an error if leafIndex is null', async () => {
+      assert.throws(() => {
+        merkle.sign('test message', mssTree, null);
+      });
+    });
+
+    it('should throw an error if leafIndex is undefined', async () => {
+      assert.throws(() => {
+        merkle.sign('test message', mssTree);
+      });
+    });
+  });
+
   describe('Verify', async () => {
     let seed;
     let mssTree;

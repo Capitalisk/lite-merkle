@@ -121,6 +121,11 @@ class LiteMerkle {
   }
 
   sign(message, mssTree, leafIndex) {
+    if (leafIndex == null || leafIndex < 0 || leafIndex >= this.leafCount) {
+      throw new Error(
+        `The leafIndex argument must be >= 0 and < ${this.leafCount}`
+      );
+    }
     let privateKey = mssTree.privateKeys[leafIndex];
     let publicKey = mssTree.publicKeys[leafIndex];
     let authPath = this.computeAuthPath(mssTree, leafIndex);
